@@ -1,16 +1,48 @@
 {
   "string": [
-    {
-      "name": "module_desc",
-      "value": "module description"
-    },
-    {
-      "name": "EntryAbility_desc",
-      "value": "description"
-    },
-    {
-      "name": "EntryAbility_label",
-      "value": "label"
-    }
+    { "name": "module_desc", "value": "Zhihu++ HarmonyOS 入口模块" },
+    { "name": "EntryAbility_desc", "value": "Zhihu++ 主入口" },
+    { "name": "EntryAbility_label", "value": "Zhihu++" },
+
+    { "name": "app_name", "value": "Zhihu++" },
+
+    { "name": "tab_home", "value": "首页" },
+    { "name": "tab_search", "value": "搜索" },
+    { "name": "tab_profile", "value": "我的" },
+
+    { "name": "page_home_title", "value": "首页" },
+    { "name": "page_search_title", "value": "搜索" },
+    { "name": "page_question_detail_title", "value": "问题详情" },
+    { "name": "page_answer_detail_title", "value": "回答详情" },
+    { "name": "page_article_detail_title", "value": "文章详情" },
+    { "name": "page_login_title", "value": "登录" },
+    { "name": "page_profile_title", "value": "我的" },
+    { "name": "page_settings_title", "value": "设置" },
+
+    { "name": "action_back", "value": "返回" },
+    { "name": "action_search", "value": "搜索" },
+    { "name": "action_close", "value": "关闭" },
+    { "name": "action_retry", "value": "重试" },
+    { "name": "action_refresh", "value": "刷新" },
+    { "name": "action_more", "value": "更多" },
+    { "name": "action_login", "value": "登录" },
+    { "name": "action_logout", "value": "退出登录" },
+    { "name": "action_settings", "value": "设置" },
+
+    { "name": "state_loading", "value": "加载中" },
+    { "name": "state_empty_title", "value": "暂无内容" },
+    { "name": "state_empty_subtitle", "value": "稍后再来看看" },
+    { "name": "state_error_title", "value": "加载失败" },
+    { "name": "state_error_subtitle_default", "value": "请检查网络后重试" },
+    { "name": "state_error_network", "value": "网络连接失败" },
+    { "name": "state_error_timeout", "value": "请求超时" },
+
+    { "name": "placeholder_page", "value": "占位页面" },
+    { "name": "placeholder_page_subtitle", "value": "本页面将在后续批次中实现" },
+
+    { "name": "search_hint", "value": "搜索知乎内容" },
+    { "name": "login_hint", "value": "请使用知乎账号登录" },
+    { "name": "profile_not_logged_in", "value": "未登录" },
+    { "name": "profile_not_logged_in_hint", "value": "点击登录以查看你的关注、收藏和历史" }
   ]
 }

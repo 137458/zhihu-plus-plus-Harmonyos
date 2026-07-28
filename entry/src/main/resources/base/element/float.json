@@ -1,8 +1,51 @@
 {
   "float": [
-    {
-      "name": "page_text_font_size",
-      "value": "50fp"
-    }
+    { "name": "page_text_font_size", "value": "50fp" },
+
+    { "name": "title_bar_height", "value": "56vp" },
+    { "name": "title_bar_title_font_size", "value": "18fp" },
+    { "name": "title_bar_action_font_size", "value": "15fp" },
+    { "name": "title_bar_icon_size", "value": "24vp" },
+
+    { "name": "tab_bar_height", "value": "56vp" },
+    { "name": "tab_bar_label_font_size", "value": "11fp" },
+    { "name": "tab_bar_icon_size", "value": "24vp" },
+
+    { "name": "card_corner_radius", "value": "12vp" },
+    { "name": "card_elevation", "value": "0.5vp" },
+    { "name": "card_padding_horizontal", "value": "14vp" },
+    { "name": "card_padding_vertical", "value": "12vp" },
+    { "name": "card_title_font_size", "value": "16fp" },
+    { "name": "card_summary_font_size", "value": "13fp" },
+    { "name": "card_meta_font_size", "value": "11fp" },
+
+    { "name": "body_font_size", "value": "15fp" },
+    { "name": "body_secondary_font_size", "value": "13fp" },
+    { "name": "caption_font_size", "value": "11fp" },
+
+    { "name": "page_padding_horizontal", "value": "14vp" },
+    { "name": "page_padding_vertical", "value": "12vp" },
+    { "name": "page_divider_thickness", "value": "0.5vp" },
+    { "name": "page_max_content_width", "value": "720vp" },
+
+    { "name": "loading_indicator_size", "value": "32vp" },
+    { "name": "empty_icon_size", "value": "96vp" },
+    { "name": "error_icon_size", "value": "64vp" },
+    { "name": "empty_title_font_size", "value": "15fp" },
+    { "name": "empty_subtitle_font_size", "value": "12fp" },
+    { "name": "error_title_font_size", "value": "15fp" },
+    { "name": "error_subtitle_font_size", "value": "12fp" },
+    { "name": "retry_button_height", "value": "36vp" },
+    { "name": "retry_button_corner_radius", "value": "18vp" },
+
+    { "name": "toast_corner_radius", "value": "8vp" },
+    { "name": "toast_padding_horizontal", "value": "16vp" },
+    { "name": "toast_padding_vertical", "value": "10vp" },
+    { "name": "toast_font_size", "value": "14fp" },
+    { "name": "toast_min_width", "value": "120vp" },
+    { "name": "toast_max_width", "value": "280vp" },
+
+    { "name": "breakpoint_sm_max", "value": "600vp" },
+    { "name": "breakpoint_md_max", "value": "840vp" }
   ]
 }

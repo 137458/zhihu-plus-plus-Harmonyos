@@ -1,8 +1,31 @@
 {
   "color": [
-    {
-      "name": "start_window_background",
-      "value": "#000000"
-    }
+    { "name": "start_window_background", "value": "#000000" },
+    { "name": "app_primary", "value": "#2A9DFF" },
+    { "name": "app_primary_pressed", "value": "#1E7FCC" },
+    { "name": "app_background", "value": "#121212" },
+    { "name": "app_surface", "value": "#1E1E1E" },
+    { "name": "app_surface_variant", "value": "#2A2A2A" },
+    { "name": "app_on_primary", "value": "#FFFFFF" },
+    { "name": "app_on_surface", "value": "#EAEAEA" },
+    { "name": "app_on_surface_secondary", "value": "#AAAAAA" },
+    { "name": "app_on_surface_disabled", "value": "#6A6A6A" },
+    { "name": "app_divider", "value": "#333333" },
+    { "name": "app_error", "value": "#EF5350" },
+    { "name": "app_warning", "value": "#FFA726" },
+    { "name": "app_success", "value": "#66BB6A" },
+    { "name": "app_link", "value": "#64B5F6" },
+    { "name": "app_title_bar_background", "value": "#1E1E1E" },
+    { "name": "app_title_bar_on_surface", "value": "#EAEAEA" },
+    { "name": "app_tab_bar_background", "value": "#1E1E1E" },
+    { "name": "app_tab_bar_on_surface", "value": "#AAAAAA" },
+    { "name": "app_tab_bar_indicator", "value": "#2A9DFF" },
+    { "name": "app_loading", "value": "#2A9DFF" },
+    { "name": "app_empty_icon", "value": "#4A4A4A" },
+    { "name": "app_error_icon", "value": "#EF5350" },
+    { "name": "app_card_background", "value": "#1E1E1E" },
+    { "name": "app_card_border", "value": "#2E2E2E" },
+    { "name": "app_status_bar_bg", "value": "#1E1E1E" },
+    { "name": "app_nav_bar_bg", "value": "#1E1E1E" }
   ]
 }
