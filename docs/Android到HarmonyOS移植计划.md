@@ -535,6 +535,20 @@ HarmonyApp/
 - ArkWeb 销毁后没有残留监听器、定时器或页面引用。
 - 正文失败不会导致 Ability 崩溃。
 
+**Slice 1 完成情况（2026-07-28）**
+
+- ✅ Slice 1 详情领域模型与 API 扩展：
+  - 新增模型：`Topic`（话题）、`AnswerDetailQuestion`（回答详情内嵌问题）、`QuestionDetail`（问题详情，10字段+author+topics）、`AnswerDetail`（回答详情，含 question/ipInfo/时间戳）、`ArticleDetail`（文章详情，含 topics/ipInfo/时间戳）
+  - 新增 `ContentDetailCache`：内存 LRU 缓存，TTL 10 分钟，容量 100，key=`contentType_contentId`，get 命中重新插入更新访问顺序，put 已存在 key 先删除再插入
+  - 扩展 `ZhihuApi`：`fetchQuestionDetail`/`fetchAnswerDetail`/`fetchArticleDetail` 三个详情接口，include 参数逐字来自证据 03 §3，使用 Web 端 UA + `x-requested-with: fetch` 头
+  - 新增单元测试 `ContentDetail.test.ets`：覆盖 5 个模型的 fromObject（完整字段/缺必填/风控空对象/可选字段默认值/数组过滤 null）+ ContentDetailCache（命中/未命中/TTL 过期/容量超限/覆盖/清空）
+- ✅ 代码审查（双 skill：harmonyos-development + code-review）修复 2 个 P1 问题：
+  - `ContentDetailCache` FIFO→LRU（get 命中重新插入；put 已存在 key 先删除再插入）
+  - `ApiError` 8 个工厂方法新增可选 `cause?: Error` 参数；`ZhihuApi` 6 处 `catch (e)` 传递原始异常作为 cause（向后兼容，便于调试）
+- ⚠️ Slice 1 范围说明：本 Slice 只实现详情领域模型、API 接口和缓存层；问题详情页 UI、回答列表分页、回答详情页 ArkWeb、文章详情页、批次验收分别由 Slice 2~5 实现
+- 构建验证：`hvigorw assembleHap` BUILD SUCCESSFUL（CompileArkTS 3.5s）
+- 提交记录：d3d145d（16 files changed, 1961 insertions）
+
 ### 13.6 第 4 批：登录与会话
 
 **时间：第 10–12 周**
