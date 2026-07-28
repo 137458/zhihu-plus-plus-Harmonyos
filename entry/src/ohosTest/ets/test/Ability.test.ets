@@ -5,6 +5,8 @@
  * 1. 冷启动后首页根容器可见（page_home_title）
  * 2. 点击 tabBar '我的' 后 page_profile_title 容器可见
  * 3. 点击 HomePage 测试入口（home_test_push）→ 进入 QuestionDetailPage（page_question_detail_title）→ 点击返回（back）→ 回到首页
+ * 4. 点击 tabBar '搜索' 后 page_search_title 容器可见
+ * 5. 搜索页显示输入框（通过 placeholder 文字"搜索知乎内容"匹配）
  *
  * 注意：
  * - UiTest 只能在真机或模拟器上运行，Previewer 不支持
@@ -180,6 +182,72 @@ export default function abilityTest() {
         expect(homeAgain !== null).assertTrue();
       } catch (e) {
         hilog.error(DOMAIN, TAG, 'pushQuestionDetailAndBack failed: %{public}s', String(e));
+        expect(false).assertTrue();
+      }
+    });
+
+    /**
+     * 点击 tabBar 的 '搜索' 文字后应切换到搜索页（HdsNavigation id=page_search_title）
+     *
+     * 验证项：
+     * - tabBar '搜索' 文字可点击
+     * - 切换后 page_search_title 根容器可见
+     */
+    it('navigateToSearchTab', 0, async () => {
+      try {
+        const driver: Driver = Driver.create();
+
+        // 点击 tabBar 的"搜索"
+        const searchTab = await driver.findComponent(ON.text('搜索'));
+        hilog.info(DOMAIN, TAG, 'navigateToSearchTab: searchTab=%{public}s',
+          `${searchTab !== null}`);
+        expect(searchTab !== null).assertTrue();
+        if (searchTab === null) {
+          hilog.error(DOMAIN, TAG, 'navigateToSearchTab: tabBar "搜索" not found, abort');
+          return;
+        }
+        await searchTab.click();
+
+        // 等待 Tab 切换与 SearchPage 渲染
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
+
+        // 验证搜索页根容器可见
+        const searchPage = await driver.findComponent(ON.id('page_search_title'));
+        hilog.info(DOMAIN, TAG, 'navigateToSearchTab: searchPage=%{public}s',
+          `${searchPage !== null}`);
+        expect(searchPage !== null).assertTrue();
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'navigateToSearchTab failed: %{public}s', String(e));
+        expect(false).assertTrue();
+      }
+    });
+
+    /**
+     * 搜索页应显示输入框（通过 placeholder 文字"搜索知乎内容"匹配）
+     *
+     * 前置：先切换到搜索 Tab
+     */
+    it('searchPageShowsInput', 0, async () => {
+      try {
+        const driver: Driver = Driver.create();
+
+        // 确保在搜索页
+        const searchTab = await driver.findComponent(ON.text('搜索'));
+        expect(searchTab !== null).assertTrue();
+        if (searchTab === null) {
+          hilog.error(DOMAIN, TAG, 'searchPageShowsInput: tabBar "搜索" not found, abort');
+          return;
+        }
+        await searchTab.click();
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
+
+        // 通过 placeholder 文字定位 TextInput
+        const input = await driver.findComponent(ON.text('搜索知乎内容'));
+        hilog.info(DOMAIN, TAG, 'searchPageShowsInput: input=%{public}s',
+          `${input !== null}`);
+        expect(input !== null).assertTrue();
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'searchPageShowsInput failed: %{public}s', String(e));
         expect(false).assertTrue();
       }
     });

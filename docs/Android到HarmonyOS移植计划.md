@@ -488,6 +488,20 @@ HarmonyApp/
 - 断网、超时、空响应和解析失败都有页面反馈。
 - 相同脱敏响应在 Android 参考预期和 ArkTS 解析结果之间一致。
 
+**完成记录（2026-07-28）**
+
+- ✅ Slice 1 网络层基础与领域模型：NetworkClient/ZseSigner/CookieJar/ApiError/Paging/Author/FeedCard/ContentType
+- ✅ Slice 2 首页信息流：HomeFeedViewModel/BasePaginationViewModel/FeedCardDataSource/HomePage(HDS)/StateView/FeedCardView/ZhihuApi.fetchHomeRecommend
+- ✅ Slice 3 首页空错载状态：StateView(LOADING/EMPTY/ERROR) + 重试 + 风控反馈（mapErrorMessage 覆盖 NETWORK_ERROR/TIMEOUT/RISK_CONTROL/UNAUTHORIZED/SERVER_ERROR）
+- ✅ Slice 4 搜索功能：ZhihuApi.search/fetchHotSearch + SearchViewModel + SearchPage(HDS) + SearchResultView/HotSearchItemView/SearchHistoryItemView + PreferencesUtil 搜索历史持久化
+- ✅ Slice 5 批次验收：UiTest 增加 navigateToSearchTab/searchPageShowsInput 用例；构建验证 BUILD SUCCESSFUL
+- ⚠️ 已知限制：
+  - 搜索 API 要求登录（allowGuestAccess=false），未登录会返回 401；第 4 批接入登录后增加前置阻断
+  - 网络变化实时监听第 4 批 EntryAbility 接入
+  - 浏览上报（touch/read）暂未实现，后续批次
+  - 设备端测试（ZseSigner/NetworkClient）需真机或模拟器执行
+- 提交记录：af466bb (Slice 1) → c3df8c0 (Slice 4) → 待提交 (Slice 5 验收)
+
 ### 13.5 第 3 批：内容详情与正文渲染
 
 **时间：第 7–9 周**
