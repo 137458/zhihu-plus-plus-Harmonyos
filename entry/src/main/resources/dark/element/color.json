@@ -26,6 +26,9 @@
     { "name": "app_card_background", "value": "#1E1E1E" },
     { "name": "app_card_border", "value": "#2E2E2E" },
     { "name": "app_status_bar_bg", "value": "#1E1E1E" },
-    { "name": "app_nav_bar_bg", "value": "#1E1E1E" }
+    { "name": "app_nav_bar_bg", "value": "#1E1E1E" },
+
+    { "name": "app_toast_text_color", "value": "#FFFFFF" },
+    { "name": "app_toast_background", "value": "#CC000000" }
   ]
 }

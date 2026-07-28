@@ -25,7 +25,7 @@ export struct EmptyView {
           .height($r('app.float.empty_icon_size'));
       } else {
         // 默认占位：用文字符号代替，避免使用未确认的 SymbolGlyph glyph 名
-        Text('○')
+        Text($r('app.string.empty_placeholder_symbol'))
           .fontSize($r('app.float.empty_icon_size'))
           .fontColor($r('app.color.app_empty_icon'));
       }

@@ -25,8 +25,8 @@ export struct AppToast {
       if (this.toast.visible) {
         Text(this.toast.message)
           .fontSize($r('app.float.toast_font_size'))
-          .fontColor('#FFFFFF')
-          .backgroundColor('rgba(0,0,0,0.8)')
+          .fontColor($r('app.color.app_toast_text_color'))
+          .backgroundColor($r('app.color.app_toast_background'))
           .borderRadius($r('app.float.toast_corner_radius'))
           .padding({
             left: $r('app.float.toast_padding_horizontal'),

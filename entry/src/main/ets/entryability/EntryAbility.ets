@@ -32,7 +32,11 @@ export default class EntryAbility extends UIAbility {
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {
-      hilog.error(DOMAIN, TAG, 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
+      // JSON.stringify 对 Error 对象返回 '{}'（属性不可枚举），改用 message + stack
+      const errMsg = err instanceof Error
+        ? `${err.message} | stack: ${err.stack ?? ''}`
+        : String(err);
+      hilog.error(DOMAIN, TAG, 'Failed to set colorMode. Cause: %{public}s', errMsg);
     }
     hilog.info(DOMAIN, TAG, 'onCreate: ability created');
   }
@@ -46,7 +50,9 @@ export default class EntryAbility extends UIAbility {
 
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
-        hilog.error(DOMAIN, TAG, 'Failed to load content. Cause: %{public}s', JSON.stringify(err));
+        // Error 对象属性不可枚举，JSON.stringify 返回 '{}'，改用 message/code
+        hilog.error(DOMAIN, TAG, 'Failed to load content. code=%{public}d msg=%{public}s',
+          err.code, err.message ?? String(err));
         return;
       }
       // 首帧已提交。后续批次的网络预热、Push token 注册等在此之后触发，

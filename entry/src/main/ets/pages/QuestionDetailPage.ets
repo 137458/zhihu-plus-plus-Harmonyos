@@ -6,10 +6,15 @@
  */
 
 import { PlaceholderPage } from '../components/PlaceholderPage';
+import { QuestionDetailParams } from '../router/AppRouter';
 
 @ComponentV2
 export struct QuestionDetailPage {
   @Local navPathStack: NavPathStack | undefined = undefined;
+  /** 从路由参数读取的问题 ID（第2批启用真实加载） */
+  @Local questionId: string = '';
+  /** 从路由参数读取的预览标题（第2批启用真实加载） */
+  @Local previewTitle: string = '';
 
   build() {
     NavDestination() {
@@ -24,6 +29,12 @@ export struct QuestionDetailPage {
     .hideTitleBar(true)
     .onReady((ctx: NavDestinationContext) => {
       this.navPathStack = ctx.pathStack;
+      // 预留参数读取，第2批启用真实加载
+      const params = ctx.pathInfo.param as QuestionDetailParams;
+      if (params !== null && params !== undefined) {
+        this.questionId = params.questionId ?? '';
+        this.previewTitle = params.previewTitle ?? '';
+      }
     });
   }
 }

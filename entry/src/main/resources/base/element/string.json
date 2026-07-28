@@ -43,6 +43,9 @@
     { "name": "search_hint", "value": "搜索知乎内容" },
     { "name": "login_hint", "value": "请使用知乎账号登录" },
     { "name": "profile_not_logged_in", "value": "未登录" },
-    { "name": "profile_not_logged_in_hint", "value": "点击登录以查看你的关注、收藏和历史" }
+    { "name": "profile_not_logged_in_hint", "value": "点击登录以查看你的关注、收藏和历史" },
+
+    { "name": "error_unknown_route", "value": "页面未找到" },
+    { "name": "empty_placeholder_symbol", "value": "○" }
   ]
 }

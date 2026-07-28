@@ -42,6 +42,8 @@ import { SettingsPage } from './SettingsPage';
  *
  * HdsNavigation 内部封装了 navDestination，通过此 @Builder 函数根据 name 返回目标页。
  * pushPath({ name: RouteName.XXX }) 触发时被调用。
+ *
+ * 未知路由 fallback：若 name 不匹配任何已知路由，渲染错误占位页，避免黑屏。
  */
 @Builder
 function PageMap(name: string) {
@@ -55,6 +57,17 @@ function PageMap(name: string) {
     LoginPage();
   } else if (name === RouteName.SETTINGS) {
     SettingsPage();
+  } else {
+    // 未知路由：显示错误占位页，避免黑屏
+    Column() {
+      Text($r('app.string.error_unknown_route'))
+        .fontSize(16)
+        .fontColor($r('app.color.app_error'))
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center);
   }
 }
 
@@ -73,10 +86,11 @@ struct Index {
       Column() {
         // HdsNavigation 作为主壳导航容器，hideTitleBar(true) 把顶部空间让给子页面
         // 子页面（HomePage/SearchPage/ProfilePage 及 push 进入的目标页）自己控制顶栏
+        //
+        // 使用 Stack + visibility 替代 if/else，所有 Tab 页面常驻不销毁，
+        // 避免切换 Tab 时滚动位置/已加载数据丢失。
         HdsNavigation(this.navPathStack) {
-          if (this.currentTab === 0) {
-            // 注入测试入口回调，由 HomePage titleBar 测试入口按钮触发 push 到 QuestionDetailPage
-            // 传 QuestionDetailParams 占位参数（占位期间不使用 questionId，仅满足类型与签名约束）
+          Stack() {
             HomePage({
               onPushQuestion: () => {
                 const params: QuestionDetailParams = {
@@ -85,12 +99,17 @@ struct Index {
                 };
                 this.navPathStack.pushPathByName(RouteName.QUESTION_DETAIL, params);
               }
-            });
-          } else if (this.currentTab === 1) {
-            SearchPage();
-          } else {
-            ProfilePage();
+            })
+              .visibility(this.currentTab === 0 ? Visibility.Visible : Visibility.Hidden);
+
+            SearchPage()
+              .visibility(this.currentTab === 1 ? Visibility.Visible : Visibility.Hidden);
+
+            ProfilePage()
+              .visibility(this.currentTab === 2 ? Visibility.Visible : Visibility.Hidden);
           }
+          .width('100%')
+          .height('100%');
         }
         .navDestination(PageMap)
         .hideTitleBar(true)
@@ -123,6 +142,13 @@ struct Index {
           maskHeight: 80
         })
         .onChange((index: number) => {
+          if (index === this.currentTab) {
+            return;
+          }
+          // 切换 Tab 前清空当前 Tab 的所有 push 页面，避免残留在新 Tab 上
+          while (this.navPathStack.size() > 0) {
+            this.navPathStack.pop();
+          }
           this.currentTab = index;
         });
       }

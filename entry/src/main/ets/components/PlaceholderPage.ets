@@ -28,6 +28,15 @@ import {
 import { LengthMetrics } from '@kit.ArkUI';
 import { EmptyView } from './EmptyView';
 
+/**
+ * 共享的空 NavPathStack。
+ *
+ * HdsNavigation 作为 UI 容器（仅用 titleBar + 渐变模糊）时传入此栈，
+ * 不参与实际路由。所有 PlaceholderPage 实例共用同一个空栈，避免每个实例
+ * 都创建独立的 NavPathStack 造成内存浪费。
+ */
+const EMPTY_NAV_STACK: NavPathStack = new NavPathStack();
+
 @ComponentV2
 export struct PlaceholderPage {
   /** 页面标题，用于 HdsNavigation titleBar */
@@ -45,11 +54,8 @@ export struct PlaceholderPage {
   /** 菜单按钮点击回调 */
   @Param onMenuClick: (() => void) | undefined = undefined;
 
-  /** 占位用的空 NavPathStack，HdsNavigation 仅作为 UI 容器不参与路由 */
-  private emptyStack: NavPathStack = new NavPathStack();
-
   build() {
-    HdsNavigation(this.emptyStack) {
+    HdsNavigation(EMPTY_NAV_STACK) {
       Column() {
         EmptyView({
           title: $r('app.string.placeholder_page'),

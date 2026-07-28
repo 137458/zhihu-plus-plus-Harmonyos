@@ -48,10 +48,15 @@ export default function abilityTest() {
      * 冷启动后应显示首页根容器（HdsNavigation id=page_home_title）
      */
     it('coldStartShowsHomePage', 0, async () => {
-      const driver: Driver = Driver.create();
-      const home = await driver.findComponent(ON.id('page_home_title'));
-      hilog.info(DOMAIN, TAG, 'coldStartShowsHomePage: home=%{public}s', `${home !== null}`);
-      expect(home !== null).assertTrue();
+      try {
+        const driver: Driver = Driver.create();
+        const home = await driver.findComponent(ON.id('page_home_title'));
+        hilog.info(DOMAIN, TAG, 'coldStartShowsHomePage: home=%{public}s', `${home !== null}`);
+        expect(home !== null).assertTrue();
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'coldStartShowsHomePage failed: %{public}s', String(e));
+        expect(false).assertTrue();
+      }
     });
 
     /**
@@ -60,25 +65,32 @@ export default function abilityTest() {
      * 所以 '我的' 文字仅在 tabBar 上出现一次，可精确匹配）
      */
     it('navigateToProfileTab', 0, async () => {
-      const driver: Driver = Driver.create();
+      try {
+        const driver: Driver = Driver.create();
 
-      // 点击 tabBar 的"我的"
-      const profileTab = await driver.findComponent(ON.text('我的'));
-      hilog.info(DOMAIN, TAG, 'navigateToProfileTab: profileTab=%{public}s',
-        `${profileTab !== null}`);
-      expect(profileTab !== null).assertTrue();
-      if (profileTab !== null) {
+        // 点击 tabBar 的"我的"
+        const profileTab = await driver.findComponent(ON.text('我的'));
+        hilog.info(DOMAIN, TAG, 'navigateToProfileTab: profileTab=%{public}s',
+          `${profileTab !== null}`);
+        expect(profileTab !== null).assertTrue();
+        if (profileTab === null) {
+          hilog.error(DOMAIN, TAG, 'navigateToProfileTab: tabBar "我的" not found, abort');
+          return;
+        }
         await profileTab.click();
+
+        // 等待 Tab 切换与 ProfilePage 渲染
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
+
+        // 验证个人页根容器可见
+        const profileTitle = await driver.findComponent(ON.id('page_profile_title'));
+        hilog.info(DOMAIN, TAG, 'navigateToProfileTab: profileTitle=%{public}s',
+          `${profileTitle !== null}`);
+        expect(profileTitle !== null).assertTrue();
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'navigateToProfileTab failed: %{public}s', String(e));
+        expect(false).assertTrue();
       }
-
-      // 等待 Tab 切换与 ProfilePage 渲染
-      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
-
-      // 验证个人页根容器可见
-      const profileTitle = await driver.findComponent(ON.id('page_profile_title'));
-      hilog.info(DOMAIN, TAG, 'navigateToProfileTab: profileTitle=%{public}s',
-        `${profileTitle !== null}`);
-      expect(profileTitle !== null).assertTrue();
     });
 
     /**
@@ -86,19 +98,27 @@ export default function abilityTest() {
      * 仅当 currentTab === 0（HomePage 渲染）时该按钮存在
      */
     it('homePageShowsTestEntryButton', 0, async () => {
-      const driver: Driver = Driver.create();
+      try {
+        const driver: Driver = Driver.create();
 
-      // 确保当前在首页（点击 tabBar '首页'，若已是首页则为 no-op）
-      const homeTab = await driver.findComponent(ON.text('首页'));
-      if (homeTab !== null) {
+        // 确保当前在首页（点击 tabBar '首页'，若已是首页则为 no-op）
+        const homeTab = await driver.findComponent(ON.text('首页'));
+        expect(homeTab !== null).assertTrue();
+        if (homeTab === null) {
+          hilog.error(DOMAIN, TAG, 'homePageShowsTestEntryButton: tabBar "首页" not found, abort');
+          return;
+        }
         await homeTab.click();
-      }
-      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 500));
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 500));
 
-      const testBtn = await driver.findComponent(ON.id('home_test_push'));
-      hilog.info(DOMAIN, TAG, 'homePageShowsTestEntryButton: testBtn=%{public}s',
-        `${testBtn !== null}`);
-      expect(testBtn !== null).assertTrue();
+        const testBtn = await driver.findComponent(ON.id('home_test_push'));
+        hilog.info(DOMAIN, TAG, 'homePageShowsTestEntryButton: testBtn=%{public}s',
+          `${testBtn !== null}`);
+        expect(testBtn !== null).assertTrue();
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'homePageShowsTestEntryButton failed: %{public}s', String(e));
+        expect(false).assertTrue();
+      }
     });
 
     /**
@@ -110,46 +130,58 @@ export default function abilityTest() {
      * 2. 点击返回按钮（componentId=back）后回到 page_home_title
      */
     it('pushQuestionDetailAndBack', 0, async () => {
-      const driver: Driver = Driver.create();
+      try {
+        const driver: Driver = Driver.create();
 
-      // 前置：确保当前在 HomePage
-      const homeTab = await driver.findComponent(ON.text('首页'));
-      if (homeTab !== null) {
+        // 前置：确保当前在 HomePage
+        const homeTab = await driver.findComponent(ON.text('首页'));
+        expect(homeTab !== null).assertTrue();
+        if (homeTab === null) {
+          hilog.error(DOMAIN, TAG, 'pushQuestionDetailAndBack: tabBar "首页" not found, abort');
+          return;
+        }
         await homeTab.click();
-      }
-      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 500));
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 500));
 
-      // 1. 点击测试入口按钮触发 pushPathByName(QUESTION_DETAIL)
-      const testBtn = await driver.findComponent(ON.id('home_test_push'));
-      expect(testBtn !== null).assertTrue();
-      if (testBtn !== null) {
+        // 1. 点击测试入口按钮触发 pushPathByName(QUESTION_DETAIL)
+        const testBtn = await driver.findComponent(ON.id('home_test_push'));
+        expect(testBtn !== null).assertTrue();
+        if (testBtn === null) {
+          hilog.error(DOMAIN, TAG, 'pushQuestionDetailAndBack: test button not found, abort');
+          return;
+        }
         await testBtn.click();
-      }
-      // 等待 NavDestination push 动画与 QuestionDetailPage 渲染
-      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 1000));
+        // 等待 NavDestination push 动画与 QuestionDetailPage 渲染
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 1000));
 
-      // 2. 验证 QuestionDetailPage 根容器可见
-      const questionPage = await driver.findComponent(ON.id('page_question_detail_title'));
-      hilog.info(DOMAIN, TAG, 'pushQuestionDetailAndBack: questionPage=%{public}s',
-        `${questionPage !== null}`);
-      expect(questionPage !== null).assertTrue();
+        // 2. 验证 QuestionDetailPage 根容器可见
+        const questionPage = await driver.findComponent(ON.id('page_question_detail_title'));
+        hilog.info(DOMAIN, TAG, 'pushQuestionDetailAndBack: questionPage=%{public}s',
+          `${questionPage !== null}`);
+        expect(questionPage !== null).assertTrue();
 
-      // 3. 点击返回按钮（PlaceholderPage backIcon 的 componentId='back'）
-      const backBtn = await driver.findComponent(ON.id('back'));
-      hilog.info(DOMAIN, TAG, 'pushQuestionDetailAndBack: backBtn=%{public}s',
-        `${backBtn !== null}`);
-      expect(backBtn !== null).assertTrue();
-      if (backBtn !== null) {
+        // 3. 点击返回按钮（PlaceholderPage backIcon 的 componentId='back'）
+        const backBtn = await driver.findComponent(ON.id('back'));
+        hilog.info(DOMAIN, TAG, 'pushQuestionDetailAndBack: backBtn=%{public}s',
+          `${backBtn !== null}`);
+        expect(backBtn !== null).assertTrue();
+        if (backBtn === null) {
+          hilog.error(DOMAIN, TAG, 'pushQuestionDetailAndBack: back button not found, abort');
+          return;
+        }
         await backBtn.click();
-      }
-      // 等待 pop 动画完成
-      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
+        // 等待 pop 动画完成
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
 
-      // 4. 验证回到 HomePage（page_home_title 重新可见）
-      const homeAgain = await driver.findComponent(ON.id('page_home_title'));
-      hilog.info(DOMAIN, TAG, 'pushQuestionDetailAndBack: homeAgain=%{public}s',
-        `${homeAgain !== null}`);
-      expect(homeAgain !== null).assertTrue();
+        // 4. 验证回到 HomePage（page_home_title 重新可见）
+        const homeAgain = await driver.findComponent(ON.id('page_home_title'));
+        hilog.info(DOMAIN, TAG, 'pushQuestionDetailAndBack: homeAgain=%{public}s',
+          `${homeAgain !== null}`);
+        expect(homeAgain !== null).assertTrue();
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'pushQuestionDetailAndBack failed: %{public}s', String(e));
+        expect(false).assertTrue();
+      }
     });
   });
 }
