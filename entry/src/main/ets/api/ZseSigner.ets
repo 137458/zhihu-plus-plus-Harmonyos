@@ -262,15 +262,36 @@ function bytesToHex(bytes: Uint8Array): string {
 /**
  * 计算字符串的 MD5 摘要，返回十六进制小写字符串
  *
+ * 内部用 try-catch 包装 cryptoFramework API（这些 API 声明可能抛出 BusinessError）。
+ * 失败时抛出 Error，由上层调用方（ZhihuApi.fetchHomeRecommend）的 try-catch 捕获并
+ * 转换为 ApiError。
+ *
  * @param input - 输入字符串
  * @returns 32 字符的 MD5 十六进制字符串
+ * @throws Error 当 cryptoFramework API 调用失败
  */
 function md5Hex(input: string): string {
-  const md = cryptoFramework.createMd('MD5');
+  let md: cryptoFramework.Md;
+  try {
+    md = cryptoFramework.createMd('MD5');
+  } catch (e) {
+    throw new Error(`createMd failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   const inputBytes: Uint8Array = strToUtf8Bytes(input);
   const inputBlob: cryptoFramework.DataBlob = { data: inputBytes };
-  md.updateSync(inputBlob);
-  const digestBlob: cryptoFramework.DataBlob = md.digestSync();
+  try {
+    md.updateSync(inputBlob);
+  } catch (e) {
+    throw new Error(`updateSync failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  let digestBlob: cryptoFramework.DataBlob;
+  try {
+    digestBlob = md.digestSync();
+  } catch (e) {
+    throw new Error(`digestSync failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
   return bytesToHex(digestBlob.data);
 }
 
@@ -378,6 +399,11 @@ export function createZse96Header(
   }
   const signSource: string = parts.join('+');
 
-  const hash: string = md5Hex(signSource);
+  let hash: string;
+  try {
+    hash = md5Hex(signSource);
+  } catch (e) {
+    throw new Error(`md5Hex failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
   return '2.0_' + encryptZseV4(hash);
 }

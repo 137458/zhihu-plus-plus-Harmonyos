@@ -13,9 +13,15 @@
  * - 所有请求必须设置 connectTimeout 和 readTimeout
  * - 敏感信息（Cookie）不进入日志
  * - 每个请求使用独立的 HttpRequest 实例，避免实例复用导致的连接泄漏
+ *
+ * ArkTS 严格模式约束：
+ * - 禁止索引签名 interface（[key: string]: ...）
+ * - 禁止索引访问（obj[key]）
+ * - 用 Object.entries 遍历对象字段，元组索引访问允许
  */
 
 import { http } from '@kit.NetworkKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { ApiError, ApiErrorCode } from '../model/ApiError';
 
 /** HTTP 响应对象 */
@@ -24,8 +30,6 @@ export interface HttpResponse {
   statusCode: number;
   /** 响应体字符串 */
   body: string;
-  /** 响应头对象 */
-  headers: Record<string, string>;
 }
 
 /** GET 请求选项 */
@@ -92,11 +96,10 @@ export class NetworkClient {
       });
 
       // 通知 Set-Cookie 回调（如果有）
+      // res.header 在 SDK 中声明为 object，ArkTS 严格模式禁止直接索引访问
+      // 通过 Object.entries 遍历查找 set-cookie 字段
       if (options.onSetCookie !== undefined) {
-        // res.header 在 SDK 中声明为 object，ArkTS 严格模式禁止 object 类型参数，
-        // 通过 as 断言到 RawHeaders interface 供内部函数使用
-        const headerTyped: RawHeaders = res.header as RawHeaders;
-        const setCookie: string | undefined = this.extractSetCookie(headerTyped);
+        const setCookie: string | undefined = this.extractSetCookie(res.header);
         if (setCookie !== undefined) {
           options.onSetCookie(setCookie);
         }
@@ -104,12 +107,10 @@ export class NetworkClient {
 
       const statusCode: number = res.responseCode;
       const body: string = typeof res.result === 'string' ? res.result : String(res.result);
-      const headerTyped2: RawHeaders = res.header as RawHeaders;
-      const headers: Record<string, string> = this.normalizeHeaders(headerTyped2);
 
       // HTTP 状态码到 ApiError 的转换
       if (statusCode >= HTTP_OK_MIN && statusCode < HTTP_OK_MAX) {
-        return { statusCode, body, headers };
+        return { statusCode, body };
       }
       if (statusCode === HTTP_UNAUTHORIZED) {
         throw ApiError.unauthorized(`HTTP ${statusCode}`);
@@ -128,10 +129,9 @@ export class NetworkClient {
         throw err;
       }
       // HarmonyOS http 模块的 BusinessError 包含 code 和 message
-      // catch 的 err 类型在 ArkTS 中为 unknown，断言到 BusinessErrorShape 供内部函数使用
-      const errTyped: BusinessErrorShape = err as BusinessErrorShape;
-      const errCode: number = this.extractErrorCode(errTyped);
-      const errMsg: string = this.extractErrorMessage(errTyped);
+      const errTyped: BusinessError = err as BusinessError;
+      const errCode: number = errTyped.code;
+      const errMsg: string = errTyped.message;
       if (errCode === HTTP_ERROR_CONNECT_TIMEOUT || errCode === HTTP_ERROR_READ_TIMEOUT) {
         throw ApiError.timeout(`connect or read timeout: ${errMsg}`);
       }
@@ -144,90 +144,33 @@ export class NetworkClient {
   }
 
   /**
-   * 从响应头对象中提取 Set-Cookie 值
+   * 从响应头对象中提取 Set-Cookie 值。
    *
-   * @param header 已断言为 RawHeaders 的响应头对象（调用方负责 as 断言）
+   * ArkTS 严格模式禁止索引访问（header['set-cookie']），
+   * 用 Object.entries 遍历查找（不区分大小写）。
+   *
+   * @param header http.HttpResponse.header（object 类型）
+   * @returns Set-Cookie 字符串；不存在返回 undefined
    */
-  private extractSetCookie(header: RawHeaders): string | undefined {
-    // 防御性校验：http 模块理论上保证 header 非空，但实测出现过 null
+  private extractSetCookie(header: object): string | undefined {
     if (header === null || header === undefined) {
       return undefined;
     }
-    // 优先查找 'set-cookie'（小写）
-    const setCookie: string | string[] | undefined = header['set-cookie'];
-    if (typeof setCookie === 'string') {
-      return setCookie;
-    }
-    if (Array.isArray(setCookie)) {
-      // 多个 Set-Cookie，用逗号连接（简化处理，CookieJar 会解析）
-      return setCookie.join('; ');
-    }
-    // 查找 'Set-Cookie'（大写）
-    const setCookieUpper: string | string[] | undefined = header['Set-Cookie'];
-    if (typeof setCookieUpper === 'string') {
-      return setCookieUpper;
-    }
-    if (Array.isArray(setCookieUpper)) {
-      return setCookieUpper.join('; ');
+    const entries: [string, object][] = Object.entries(header);
+    for (let i = 0; i < entries.length; i++) {
+      const entry: [string, object] = entries[i];
+      const key: string = entry[0];
+      if (key.toLowerCase() === 'set-cookie') {
+        const value: object = entry[1];
+        if (typeof value === 'string') {
+          return value;
+        }
+        if (Array.isArray(value)) {
+          const arr: string[] = value as string[];
+          return arr.join('; ');
+        }
+      }
     }
     return undefined;
   }
-
-  /**
-   * 将响应头对象归一化为 Record<string, string>
-   *
-   * @param header 已断言为 RawHeaders 的响应头对象（调用方负责 as 断言）
-   */
-  private normalizeHeaders(header: RawHeaders): Record<string, string> {
-    if (header === null || header === undefined) {
-      return {};
-    }
-    const result: Record<string, string> = {};
-    const keys: string[] = Object.keys(header);
-    for (let i = 0; i < keys.length; i++) {
-      const key: string = keys[i];
-      const value: string | string[] | undefined = header[key];
-      if (typeof value === 'string') {
-        result[key] = value;
-      } else if (Array.isArray(value)) {
-        result[key] = value.join(', ');
-      }
-    }
-    return result;
-  }
-
-  /**
-   * 从 BusinessError 中提取错误码
-   *
-   * @param err 已断言为 BusinessErrorShape 的错误对象（调用方负责 as 断言）
-   */
-  private extractErrorCode(err: BusinessErrorShape): number {
-    if (typeof err.code === 'number') {
-      return err.code;
-    }
-    return -1;
-  }
-
-  /**
-   * 从 BusinessError 中提取错误消息
-   *
-   * @param err 已断言为 BusinessErrorShape 的错误对象（调用方负责 as 断言）
-   */
-  private extractErrorMessage(err: BusinessErrorShape): string {
-    if (typeof err.message === 'string' && err.message.length > 0) {
-      return err.message;
-    }
-    return 'unknown error';
-  }
-}
-
-/** 响应头对象形状（内部使用） */
-interface RawHeaders {
-  [key: string]: string | string[] | undefined;
-}
-
-/** BusinessError 形状（内部使用） */
-interface BusinessErrorShape {
-  code?: number;
-  message?: string;
 }
