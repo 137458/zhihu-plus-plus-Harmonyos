@@ -1,0 +1,15 @@
+/node_modules
+/oh_modules
+/local.properties
+/.idea
+**/build
+/.hvigor
+.cxx
+/.clangd
+/.clang-format
+/.clang-tidy
+**/.test
+/.appanalyzer
+
+# Android 参考工程（移植计划 2.1 节，不纳入 HarmonyOS 仓库）
+/zhihu-plus-plus
