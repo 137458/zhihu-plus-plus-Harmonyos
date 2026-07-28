@@ -11,8 +11,8 @@
 | [02-home-and-search.md](./02-home-and-search.md) | 首页推荐（Web/Android/混合/本地）、搜索、热搜、阅读上报 |
 | [03-content-detail.md](./03-content-detail.md) | 问题详情、回答详情、文章详情、内容渲染、回答切换 |
 | [04-interaction-and-profile.md](./04-interaction-and-profile.md) | 点赞、收藏、评论、个人页、关注、基础设置 |
-| [05-protocol-inventory.md](./05-protocol-inventory.md) | 接口汇总清单（按域名、协议类型分类） |
-| [06-risk-register.md](./06-risk-register.md) | 风险清单与未确认项 |
+| [05-protocol-inventory.md](./05-protocol-inventory.md) | 接口汇总清单（按功能域分类，含签名/Cookie/请求体/响应字段/未确认项/协议常量） |
+| [06-risk-register.md](./06-risk-register.md) | 风险清单（70 条，按 10 个类别分组，含状态与处理建议） |
 
 ## 证据采集原则
 
