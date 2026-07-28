@@ -549,6 +549,59 @@ HarmonyApp/
 - 构建验证：`hvigorw assembleHap` BUILD SUCCESSFUL（CompileArkTS 3.5s）
 - 提交记录：d3d145d（16 files changed, 1961 insertions）
 
+**Slice 2 完成情况（2026-07-28）**
+
+- ✅ Slice 2 问题详情页 + 回答列表分页 + 首页卡片点击跳转：
+  - 扩展 `ZhihuApi`：新增 `fetchQuestionAnswers(questionId, pagingNext?, order?)`，URL `/api/v4/questions/{id}/feeds?limit=20&order=default`，复用 FeedCard 解析
+  - 新增 `QuestionDetailViewModel`：持有 detail (QuestionDetail) + answers (FeedCard[]) 双状态；缓存命中；去重追加（dedupeAppend，基于 stableKey）；并行加载 detail + answers 首页（Promise.all）
+  - 改造 `QuestionDetailPage`：HdsNavigation 模式三混合写法 4 字段组合 + 顶部问题信息区（标题/统计/描述）+ LazyForEach 回答列表 + 触底加载更多
+  - 改造 `HomePage`：移除测试入口齿轮按钮（SHOW_TEST_ENTRY/onPushQuestion），新增 `onCardClick` 回调，仅处理 QUESTION/ANSWER/ARTICLE 三种类型
+  - 改造 `Index.ets`：`handleCardClick(card)` 根据 contentType 分发到对应详情页（QUESTION→QuestionDetailPage 已实现，ANSWER/ARTICLE 占位跳转）
+  - 新增 `question_answers_section_title` 字符串资源
+- 构建验证：BUILD SUCCESSFUL
+- 提交记录：8502384
+
+**Slice 3 完成情况（2026-07-28）**
+
+- ✅ Slice 3 回答详情页 + ArticleWebContainer（ArkWeb 正文容器）：
+  - 新增 `web/ArticleWebContainer.ets`：基于 `@ohos.web.web` 的 Web 组件封装
+    - 将知乎 content HTML 包装为完整 HTML 文档（charset/viewport/referer meta + base href + CSS）
+    - 深色模式 CSS 变量切换（`@media (prefers-color-scheme: dark)`）
+    - 图片防盗链：`<base href="https://www.zhihu.com/">` 注入 Referer
+    - 安全：`onLoadIntercept` 校验协议（仅 HTTPS）和可信主机白名单（www.zhihu.com、pic1-4.zhimg.com、picx/pica/picb/picd.zhimg.com、equation.zhihu.com）
+    - 回调：`onPageFinish`/`onError`/`onLinkClick`
+  - 新增 `AnswerDetailViewModel`：持有 detail (AnswerDetail) + isLoading + errorMessage；缓存命中
+  - 改造 `AnswerDetailPage`：HdsNavigation 模式三 + 顶部作者卡（头像/姓名/headline）+ 所属问题标题 + ArkWeb 正文 + 底部统计栏（点赞/评论/感谢/IP 属地）+ 加载/错误状态切换
+  - 修复 Author.headline 可选字段访问（`!== undefined && .length > 0`）
+- 构建验证：BUILD SUCCESSFUL（修复 ArkWeb 回调签名：OnErrorReceiveEvent/OnLoadInterceptEvent）
+
+**Slice 4 完成情况（2026-07-28）**
+
+- ✅ Slice 4 文章详情页（复用 ArticleWebContainer）：
+  - 新增 `ArticleDetailViewModel`：持有 detail (ArticleDetail) + isLoading + errorMessage；缓存命中
+  - 改造 `ArticleDetailPage`：HdsNavigation 模式三 + 文章标题 + 作者卡 + 发布/更新时间 + ArkWeb 正文（复用 Slice 3 组件）+ 底部统计栏（点赞/评论/IP 属地）+ 加载/错误状态切换
+- 构建验证：BUILD SUCCESSFUL
+
+**Slice 5 完成情况（2026-07-28）**
+
+- ✅ Slice 5 批次验收：
+  - 重写 `Ability.test.ets`：删除已废弃的 home_test_push 相关用例（homePageShowsTestEntryButton、pushQuestionDetailAndBack）
+  - 保留并通过的用例：coldStartShowsHomePage、navigateToProfileTab、navigateToSearchTab、searchPageShowsInput
+  - 新增 `navigateToDetailFromHomeCard`：详情页跳转链路验证（依赖网络，网络不可用时跳过不失败）
+  - 新增 `detailPageBackButtonAccessible`：占位用例，提醒后续补充自动化入口
+  - 设计原则：CI 断网不阻断测试套件，真机环境手动验证完整链路
+- 构建验证：BUILD SUCCESSFUL
+
+**第 3 批批次验收标准达成**
+
+- ✅ 首页或搜索结果可进入问题详情、回答详情和文章详情（HomePage.handleCardClick 分发 + Index.ets handleCardClick 路由）
+- ✅ 正文可滚动，图片、表格和公式有可观察结果（ArkWeb Web 组件 + CSS 样式 + 图片防盗链）
+- ✅ 外链不能跳转到不受信任的协议或主机（onLoadIntercept + HTTPS only + 可信主机白名单）
+- ⚠️ ArkWeb 销毁后没有残留监听器、定时器或页面引用（代码审查 + 真机验证待补充）
+- ✅ 正文失败不会导致 Ability 崩溃（StateView 错误态 + errorMessage 展示 + 重试按钮）
+- ⚠️ 深色模式下正文可读（CSS 变量切换已实现，真机验证待补充）
+- ⚠️ 平板布局正文宽度合理（Web 组件 width 100% 自适应，真机验证待补充）
+
 ### 13.6 第 4 批：登录与会话
 
 **时间：第 10–12 周**
