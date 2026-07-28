@@ -23,6 +23,9 @@ import { SearchResultItem } from '../model/SearchResult';
 import { HotSearchItem } from '../model/HotSearch';
 import { Paging, parsePaging } from '../model/Paging';
 import { ApiError } from '../model/ApiError';
+import { QuestionDetail } from '../model/QuestionDetail';
+import { AnswerDetail } from '../model/AnswerDetail';
+import { ArticleDetail } from '../model/ArticleDetail';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN: number = 0x0000;
@@ -65,6 +68,30 @@ const SEARCH_PAGE_LIMIT: number = 10;
  * 列出 FeedCard 解析所需的所有字段
  */
 const INCLUDE_FIELDS: string = 'data[.(target.type|target.id|target.question.id|target.question.title|target.excerpt|target.author.name|target.author.headline|target.author.avatar_url|target.author.url_token|target.thumbnail|target.voteup_count|target.comment_count|target.vote_count|target.like_count|target.excerpt_title)]';
+
+/** 问题详情接口路径 */
+const QUESTION_DETAIL_PATH: string = '/api/v4/questions';
+/** 回答详情接口路径 */
+const ANSWER_DETAIL_PATH: string = '/api/v4/answers';
+/** 文章详情接口路径 */
+const ARTICLE_DETAIL_PATH: string = '/api/v4/articles';
+/**
+ * 问题详情 include 参数（逐字来自证据 03 §3，控制返回字段以减少流量）
+ * 来源：docs/evidence/03-content-detail.md 问题详情行
+ */
+const QUESTION_DETAIL_INCLUDE: string = 'read_count,visit_count,answer_count,voteup_count,comment_count,follower_count,detail,excerpt,author,relationship.is_following,topics';
+/**
+ * 回答详情 include 参数（逐字来自证据 03 §3，控制返回字段以减少流量）
+ * 来源：docs/evidence/03-content-detail.md 回答详情行
+ */
+const ANSWER_DETAIL_INCLUDE: string = '.settings,content,editable_content,paid_info,can_comment,excerpt,thanks_count,voteup_count,comment_count,visited_count,attachment,reaction,ip_info,pagination_info,endorsements,question.topics,question.author,reaction.relation.voting,author.badge_v2,settings.table_of_contents.enabled';
+/**
+ * 文章详情 include 参数（逐字来自证据 03 §3，控制返回字段以减少流量）
+ * 来源：docs/evidence/03-content-detail.md 文章详情行
+ */
+const ARTICLE_DETAIL_INCLUDE: string = 'content,topics,paid_info,can_comment,excerpt,thanks_count,voteup_count,comment_count,visited_count,relationship,ip_info,relationship.vote,author.badge_v2';
+/** 详情接口使用的 Web 端 User-Agent（来自 PRD 第 3 批 Slice 1） */
+const ZHIHU_WEB_UA: string = 'Mozilla/5.0 (X11; U; Linux x86_64; en-US) AppleWebKit/540.0 (KHTML, like Gecko) Ubuntu/10.10 Chrome/9.1.0.0 Safari/540.0';
 
 export class ZhihuApi {
   private client: NetworkClient;
@@ -150,7 +177,7 @@ export class ZhihuApi {
     try {
       raw = JSON.parse(body);
     } catch (e) {
-      throw ApiError.parseError('response is not valid JSON');
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
     }
 
     const root: RawFeedResponse = raw as RawFeedResponse;
@@ -267,7 +294,7 @@ export class ZhihuApi {
     try {
       raw = JSON.parse(body);
     } catch (e) {
-      throw ApiError.parseError('response is not valid JSON');
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
     }
 
     const root: RawSearchResponse = raw as RawSearchResponse;
@@ -359,7 +386,7 @@ export class ZhihuApi {
     try {
       raw = JSON.parse(body);
     } catch (e) {
-      throw ApiError.parseError('response is not valid JSON');
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
     }
 
     const root: RawHotSearchResponse = raw as RawHotSearchResponse;
@@ -384,6 +411,234 @@ export class ZhihuApi {
 
     hilog.info(DOMAIN, TAG, 'parseHotSearchResponse: items=%{public}d', items.length);
     return items;
+  }
+
+  /**
+   * 获取问题详情。
+   *
+   * 调用 https://www.zhihu.com/api/v4/questions/{questionId}?include=...，
+   * 需要 d_c0 Cookie（未登录可读，关注需登录）。
+   *
+   * @param questionId 问题 ID
+   * @returns 解析后的问题详情
+   * @throws ApiError 网络错误、超时、HTTP 错误码、风控拦截、解析失败
+   */
+  async fetchQuestionDetail(questionId: string): Promise<QuestionDetail> {
+    const url: string = ZHIHU_WWW_BASE + QUESTION_DETAIL_PATH + '/' + questionId
+      + '?include=' + encodeURIComponent(QUESTION_DETAIL_INCLUDE);
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchQuestionDetail: questionId=%{public}s', questionId);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseQuestionDetailResponse(res.body);
+  }
+
+  /**
+   * 解析问题详情响应。
+   *
+   * 风控判定：
+   * - 响应体为空 → PARSE_ERROR
+   * - JSON 解析失败 → PARSE_ERROR
+   * - 调用 QuestionDetail.fromObject 返回 null → RISK_CONTROL
+   *   （疑似风控页/HTML 响应导致字段缺失）
+   *
+   * 注意：详情响应是单个对象，不像首页推荐的 data[] 数组。
+   * 直接对 root 调用 fromObject。
+   */
+  private parseQuestionDetailResponse(body: string): QuestionDetail {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty response body');
+    }
+
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+
+    const detail: QuestionDetail | null = QuestionDetail.fromObject(raw);
+    if (detail === null) {
+      // 响应解析为 null，疑似风控响应（HTML 页或字段缺失）
+      throw ApiError.riskControl('question detail fromObject returned null (likely risk control)');
+    }
+
+    hilog.info(DOMAIN, TAG, 'parseQuestionDetailResponse: id=%{public}s', detail.id);
+    return detail;
+  }
+
+  /**
+   * 获取回答详情。
+   *
+   * 调用 https://www.zhihu.com/api/v4/answers/{answerId}?include=...，
+   * 需要 d_c0 Cookie。
+   *
+   * @param answerId 回答 ID
+   * @returns 解析后的回答详情
+   * @throws ApiError 网络错误、超时、HTTP 错误码、风控拦截、解析失败
+   */
+  async fetchAnswerDetail(answerId: string): Promise<AnswerDetail> {
+    const url: string = ZHIHU_WWW_BASE + ANSWER_DETAIL_PATH + '/' + answerId
+      + '?include=' + encodeURIComponent(ANSWER_DETAIL_INCLUDE);
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchAnswerDetail: answerId=%{public}s', answerId);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseAnswerDetailResponse(res.body);
+  }
+
+  /**
+   * 解析回答详情响应。
+   *
+   * 风控判定：
+   * - 响应体为空 → PARSE_ERROR
+   * - JSON 解析失败 → PARSE_ERROR
+   * - 调用 AnswerDetail.fromObject 返回 null → RISK_CONTROL
+   *   （疑似风控页/HTML 响应导致字段缺失）
+   *
+   * 注意：详情响应是单个对象，不像首页推荐的 data[] 数组。
+   * 直接对 root 调用 fromObject。
+   */
+  private parseAnswerDetailResponse(body: string): AnswerDetail {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty response body');
+    }
+
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+
+    const detail: AnswerDetail | null = AnswerDetail.fromObject(raw);
+    if (detail === null) {
+      // 响应解析为 null，疑似风控响应（HTML 页或字段缺失）
+      throw ApiError.riskControl('answer detail fromObject returned null (likely risk control)');
+    }
+
+    hilog.info(DOMAIN, TAG, 'parseAnswerDetailResponse: id=%{public}s', detail.id);
+    return detail;
+  }
+
+  /**
+   * 获取文章详情。
+   *
+   * 调用 https://www.zhihu.com/api/v4/articles/{articleId}?include=...，
+   * 需要 d_c0 Cookie。
+   *
+   * @param articleId 文章 ID
+   * @returns 解析后的文章详情
+   * @throws ApiError 网络错误、超时、HTTP 错误码、风控拦截、解析失败
+   */
+  async fetchArticleDetail(articleId: string): Promise<ArticleDetail> {
+    const url: string = ZHIHU_WWW_BASE + ARTICLE_DETAIL_PATH + '/' + articleId
+      + '?include=' + encodeURIComponent(ARTICLE_DETAIL_INCLUDE);
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchArticleDetail: articleId=%{public}s', articleId);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseArticleDetailResponse(res.body);
+  }
+
+  /**
+   * 解析文章详情响应。
+   *
+   * 风控判定：
+   * - 响应体为空 → PARSE_ERROR
+   * - JSON 解析失败 → PARSE_ERROR
+   * - 调用 ArticleDetail.fromObject 返回 null → RISK_CONTROL
+   *   （疑似风控页/HTML 响应导致字段缺失）
+   *
+   * 注意：详情响应是单个对象，不像首页推荐的 data[] 数组。
+   * 直接对 root 调用 fromObject。
+   */
+  private parseArticleDetailResponse(body: string): ArticleDetail {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty response body');
+    }
+
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+
+    const detail: ArticleDetail | null = ArticleDetail.fromObject(raw);
+    if (detail === null) {
+      // 响应解析为 null，疑似风控响应（HTML 页或字段缺失）
+      throw ApiError.riskControl('article detail fromObject returned null (likely risk control)');
+    }
+
+    hilog.info(DOMAIN, TAG, 'parseArticleDetailResponse: id=%{public}s', detail.id);
+    return detail;
   }
 }
 

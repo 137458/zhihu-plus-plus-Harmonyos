@@ -51,42 +51,42 @@ export class ApiError extends Error {
   }
 
   /** 创建网络错误（无连接、DNS 失败等） */
-  static network(message: string): ApiError {
-    return new ApiError(ApiErrorCode.NETWORK_ERROR, message);
+  static network(message: string, cause?: Error): ApiError {
+    return new ApiError(ApiErrorCode.NETWORK_ERROR, message, cause);
   }
 
   /** 创建请求超时错误 */
-  static timeout(message: string): ApiError {
-    return new ApiError(ApiErrorCode.TIMEOUT, message);
+  static timeout(message: string, cause?: Error): ApiError {
+    return new ApiError(ApiErrorCode.TIMEOUT, message, cause);
   }
 
   /** 创建响应解析失败错误 */
-  static parseError(message: string): ApiError {
-    return new ApiError(ApiErrorCode.PARSE_ERROR, message);
+  static parseError(message: string, cause?: Error): ApiError {
+    return new ApiError(ApiErrorCode.PARSE_ERROR, message, cause);
   }
 
   /** 创建风控拦截错误 */
-  static riskControl(message: string): ApiError {
-    return new ApiError(ApiErrorCode.RISK_CONTROL, message);
+  static riskControl(message: string, cause?: Error): ApiError {
+    return new ApiError(ApiErrorCode.RISK_CONTROL, message, cause);
   }
 
   /** 创建未授权错误（登录失效） */
-  static unauthorized(message: string): ApiError {
-    return new ApiError(ApiErrorCode.UNAUTHORIZED, message);
+  static unauthorized(message: string, cause?: Error): ApiError {
+    return new ApiError(ApiErrorCode.UNAUTHORIZED, message, cause);
   }
 
   /** 创建资源不存在错误 */
-  static notFound(message: string): ApiError {
-    return new ApiError(ApiErrorCode.NOT_FOUND, message);
+  static notFound(message: string, cause?: Error): ApiError {
+    return new ApiError(ApiErrorCode.NOT_FOUND, message, cause);
   }
 
   /** 创建服务器错误（5xx） */
-  static serverError(message: string): ApiError {
-    return new ApiError(ApiErrorCode.SERVER_ERROR, message);
+  static serverError(message: string, cause?: Error): ApiError {
+    return new ApiError(ApiErrorCode.SERVER_ERROR, message, cause);
   }
 
   /** 创建未知错误 */
-  static unknown(message: string): ApiError {
-    return new ApiError(ApiErrorCode.UNKNOWN, message);
+  static unknown(message: string, cause?: Error): ApiError {
+    return new ApiError(ApiErrorCode.UNKNOWN, message, cause);
   }
 }
