@@ -442,7 +442,7 @@ HarmonyApp/
 - HDS 化（超出原计划，已全部完成）：
   - 主壳 `pages/Index.ets` 使用 `HdsNavigation` 作为路由容器 + `HdsTabs` 作为底部 TabBar。
   - `HdsTabs` 配置 `barOverlap(true) + barPosition(BarPosition.End) + vertical(false) + barBackgroundStyle({maskColor, maskHeight})` 三要素，提供底部渐变模糊。
-  - `components/PlaceholderPage.ets` 使用 `HdsNavigation + HdsNavigationTitleMode.MINI + ScrollEffectType.COMMON_BLUR + blurEffectiveEndOffset=0vp`，对所有占位页面（首页/搜索/我的/问题详情/回答详情/文章详情/登录/设置）提供顶部渐变模糊。
+  - `components/PlaceholderPage.ets` 使用 `HdsNavigation + HdsNavigationTitleMode.MINI + ScrollEffectType.GRADIENT_BLUR + blurEffectiveEndOffset=0vp`，对所有占位页面（首页/搜索/我的/问题详情/回答详情/文章详情/登录/设置）提供顶部渐变模糊。
   - `components/AppToast.ets` 直接绑定全局 `toastState` 单例，保持 `@ObservedV2 + @Trace` 状态变化可被 `@ComponentV2` 感知。
 - 测试入口（占位期间）：`HomePage` titleBar 右上角测试入口按钮（`HdsNavigationIconOptions.componentId='home_test_push'`），由 `Index.ets` 注入 `navPathStack.pushPathByName(RouteName.QUESTION_DETAIL, params)` 回调，后续批次接入真实首页功能后移除。
 - UiTest（`ohosTest/ets/test/Ability.test.ets`）已扩展为 4 个用例：

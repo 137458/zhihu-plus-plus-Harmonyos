@@ -4,7 +4,7 @@
  * 用于本批次所有占位路由的统一外观：HDS 顶部标题栏（带滚动渐变模糊）+ 中间 EmptyView。
  *
  * 实现方式：
- * - 使用 HdsNavigation 作为页面级根容器，提供 HDS titleBar + ScrollEffectType.COMMON_BLUR
+ * - 使用 HdsNavigation 作为页面级根容器，提供 HDS titleBar + ScrollEffectType.GRADIENT_BLUR
  * - 传入空 NavPathStack，HdsNavigation 仅作为 UI 容器，不参与路由
  * - 路由由外层 Index.ets 的 HdsNavigation(navPathStack) + NavDestination 管理
  * - titleMode = MINI，符合详情页标题栏规范
@@ -79,7 +79,7 @@ export struct PlaceholderPage {
       style: {
         scrollEffectOpts: {
           enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.COMMON_BLUR,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
           blurEffectiveStartOffset: LengthMetrics.vp(0),
           blurEffectiveEndOffset: LengthMetrics.vp(0)
         },
