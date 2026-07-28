@@ -34,3 +34,28 @@ HarmonyApp 是 Zhihu++ Android 客户端的 HarmonyOS NEXT 原生移植工程。
 ## 当前交付规划
 
 迁移分为 11 批：第 0–8 批完成核心 HarmonyOS 产品和发布收口，第 9–11 批补齐完整社区、智能能力、发布增强及 HarmonyOS 生态能力。详细时间、功能和验收标准见 `docs/Android到HarmonyOS移植计划.md`。
+
+## 当前进度
+
+| 批次 | 状态 | 说明 |
+|---|---|---|
+| 第 0 批 证据与范围冻结 | 已完成 | `docs/evidence/` 下 6 份证据文档：首发范围、鉴权、首页搜索、详情、互动、接口清单、风险清单 |
+| 第 1 批 HarmonyOS 主壳 | 已完成 | 主壳 `Index.ets` + 6 组件（AppTitleBar/LoadingView/EmptyView/ErrorView/PlaceholderPage/AppToast）+ 8 占位页面 + 路由契约 + 断点/Toast 工具 + 资源基线 + UiTest |
+| 第 2 批 匿名信息流与搜索 | 未开始 | 下一批：NetworkClient、首页推荐、搜索 |
+
+## 工程结构（截至第 1 批）
+
+```
+entry/src/main/ets/
+├─ entryability/         Ability 生命周期
+├─ entrybackupability/   备份 Ability
+├─ pages/                Index 主壳 + 8 个占位页面
+├─ components/           6 个统一组件
+├─ router/               AppRouter 路由契约
+├─ utils/                BreakpointUtil、ToastUtil
+└─ model/                （预留，第 2 批启用）
+   viewmodel/            （预留，第 2 批启用）
+   api/                  （预留，第 2 批启用）
+   web/                  （预留，第 3 批启用）
+   storage/              （预留，第 4 批启用）
+```
