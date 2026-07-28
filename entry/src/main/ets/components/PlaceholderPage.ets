@@ -1,10 +1,14 @@
 /**
  * 占位页面组件 - HDS 版
  *
- * 用于本批次所有占位路由的统一外观：HDS 顶部标题栏（带滚动渐变模糊）+ 中间 EmptyView。
+ * 用于本批次所有占位路由的统一外观：HDS 顶部标题栏（模式三混合写法）+ 中间 EmptyView。
  *
  * 实现方式：
- * - 使用 HdsNavigation 作为页面级根容器，提供 HDS titleBar + ScrollEffectType.GRADIENT_BLUR
+ * - 使用 HdsNavigation 作为页面级根容器，采用 HDS 模式三混合写法（4 字段组合）：
+ *   1. scrollEffectOpts: ScrollEffectType.GRADIENT_BLUR（渐变模糊）
+ *   2. systemMaterialEffect: MaterialType.IMMERSIVE + MaterialLevel.ADAPTIVE（沉浸光感材质）
+ *   3. originalStyle: 滚动前样式（背景/文字/图标色）
+ *   4. scrollEffectStyle: 滚动后样式（背景/文字/图标色）
  * - 传入空 NavPathStack，HdsNavigation 仅作为 UI 容器，不参与路由
  * - 路由由外层 Index.ets 的 HdsNavigation(navPathStack) + NavDestination 管理
  * - titleMode = MINI，符合详情页标题栏规范
@@ -23,7 +27,8 @@ import {
   HdsNavigationTitleMode,
   HdsNavigationMenuItemOptions,
   HdsNavigationMenuContentOptions,
-  ScrollEffectType
+  ScrollEffectType,
+  hdsMaterial
 } from '@kit.UIDesignKit';
 import { LengthMetrics } from '@kit.ArkUI';
 import { EmptyView } from './EmptyView';
@@ -82,6 +87,10 @@ export struct PlaceholderPage {
           scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
           blurEffectiveStartOffset: LengthMetrics.vp(0),
           blurEffectiveEndOffset: LengthMetrics.vp(0)
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
         },
         originalStyle: {
           backgroundStyle: {
