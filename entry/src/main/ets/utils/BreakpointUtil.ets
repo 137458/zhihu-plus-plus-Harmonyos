@@ -12,7 +12,15 @@
  *   - breakpoint_md_max = 840vp
  *
  * 当前实现只暴露枚举和工具函数，具体响应式布局由页面按档位决定。
+ *
+ * 注意：工具类无法使用 $r() 引用资源，故断点阈值用 const 常量，
+ * 与 float.json 的 breakpoint_sm_max / breakpoint_md_max 保持一致，调整时同步修改。
  */
+
+/** 小屏断点上限（vp），与 float.json 的 breakpoint_sm_max 一致 */
+const BP_SM_MAX_VP: number = 600;
+/** 中屏断点上限（vp），与 float.json 的 breakpoint_md_max 一致 */
+const BP_MD_MAX_VP: number = 840;
 
 /** 设备尺寸档位 */
 export enum Breakpoint {
@@ -34,10 +42,10 @@ export class BreakpointUtil {
    * @returns 断点档位
    */
   static resolve(widthVp: number): Breakpoint {
-    if (widthVp < 600) {
+    if (widthVp < BP_SM_MAX_VP) {
       return Breakpoint.SM;
     }
-    if (widthVp < 840) {
+    if (widthVp < BP_MD_MAX_VP) {
       return Breakpoint.MD;
     }
     return Breakpoint.LG;
@@ -50,7 +58,7 @@ export class BreakpointUtil {
 
   /** 是否为大屏设备（含 md 和 lg） */
   static isLargeScreen(widthVp: number): boolean {
-    const bp = this.resolve(widthVp);
+    const bp: Breakpoint = this.resolve(widthVp);
     return bp === Breakpoint.MD || bp === Breakpoint.LG;
   }
 }

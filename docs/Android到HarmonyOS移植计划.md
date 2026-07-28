@@ -435,6 +435,24 @@ HarmonyApp/
 - 深色模式和系统返回可用。
 - debug HAP、`ohosTest` target 和 ArkTS 严格检查通过。
 
+**批次完成情况（2026-07-28）**
+
+- 目录骨架：`pages/components/model/viewmodel/api/web/storage/utils/router/entryability/entrybackupability` 全部建立并通过 README.md 固化职责。
+- 路由：`AppRouter.RouteName` + `QuestionDetailParams/AnswerDetailParams/ArticleDetailParams/ProfileParams/LoginParams` 显式类型，禁止 `any/unknown`。
+- HDS 化（超出原计划，已全部完成）：
+  - 主壳 `pages/Index.ets` 使用 `HdsNavigation` 作为路由容器 + `HdsTabs` 作为底部 TabBar。
+  - `HdsTabs` 配置 `barOverlap(true) + barPosition(BarPosition.End) + vertical(false) + barBackgroundStyle({maskColor, maskHeight})` 三要素，提供底部渐变模糊。
+  - `components/PlaceholderPage.ets` 使用 `HdsNavigation + HdsNavigationTitleMode.MINI + ScrollEffectType.COMMON_BLUR + blurEffectiveEndOffset=0vp`，对所有占位页面（首页/搜索/我的/问题详情/回答详情/文章详情/登录/设置）提供顶部渐变模糊。
+  - `components/AppToast.ets` 直接绑定全局 `toastState` 单例，保持 `@ObservedV2 + @Trace` 状态变化可被 `@ComponentV2` 感知。
+- 测试入口（占位期间）：`HomePage` titleBar 右上角测试入口按钮（`HdsNavigationIconOptions.componentId='home_test_push'`），由 `Index.ets` 注入 `navPathStack.pushPathByName(RouteName.QUESTION_DETAIL, params)` 回调，后续批次接入真实首页功能后移除。
+- UiTest（`ohosTest/ets/test/Ability.test.ets`）已扩展为 4 个用例：
+  - `coldStartShowsHomePage`：验证 `page_home_title` 可见。
+  - `navigateToProfileTab`：通过 `ON.text('我的')` 点击 tabBar，验证 `page_profile_title` 可见。
+  - `homePageShowsTestEntryButton`：验证 `home_test_push` 测试入口按钮可见。
+  - `pushQuestionDetailAndBack`：点击测试入口 → 验证 `page_question_detail_title` → 点击返回（`ON.id('back')`）→ 验证回到 `page_home_title`。
+- HDS tabBar 简单对象形式（`{icon, text}`）不支持 `id` 字段；UiTest 通过 `ON.text` 匹配文字定位，避免破坏 HDS 默认 tabBar 选中态、动画和模糊效果。
+- 构建验证：`hvigorw assembleHap --mode module --analyze=normal` BUILD SUCCESSFUL。
+
 ### 13.4 第 2 批：匿名信息流与搜索
 
 **时间：第 4–6 周**

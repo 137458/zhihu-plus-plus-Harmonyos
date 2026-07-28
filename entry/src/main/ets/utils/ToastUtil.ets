@@ -2,13 +2,14 @@
  * Toast 工具类
  *
  * 全局 Toast 控制器：维护一个 @ObservedV2 单例 toastState，主壳中的 AppToast
- * 组件监听该状态来渲染。ToastUtil.show() 设置 message + visible=true，并在
- * durationMs 后将 visible 置回 false。
+ * 组件直接持有该单例引用以感知变化。ToastUtil.show() 设置 message + visible=true，
+ * 并在 durationMs 后将 visible 置回 false。
  *
  * 注意：
  * - ArkTS 严格语法，不使用 any/unknown
  * - @ObservedV2 与 @Trace 必须成对使用，仅 @Trace 属性参与 UI 刷新
  * - 重复调用 show() 会取消上一次的定时器，避免 Toast 闪烁
+ * - setTimeout 在 OpenHarmony 全局定义返回 number，不需要 as 强转
  */
 
 /** Toast 全局状态：由 ToastUtil 写入，由 AppToast 读取 */
@@ -51,6 +52,20 @@ export class ToastUtil {
     pendingTimerId = setTimeout(() => {
       toastState.visible = false;
       pendingTimerId = -1;
-    }, durationMs) as number;
+    }, durationMs);
+  }
+
+  /**
+   * 取消挂起的 Toast 定时器并隐藏 Toast。
+   *
+   * 用于 Ability 退出 / 窗口销毁 / 内存告警时清理资源，
+   * 避免已销毁窗口上的 Toast 仍尝试刷新。
+   */
+  static cancelPendingTimer(): void {
+    if (pendingTimerId !== -1) {
+      clearTimeout(pendingTimerId);
+      pendingTimerId = -1;
+    }
+    toastState.visible = false;
   }
 }

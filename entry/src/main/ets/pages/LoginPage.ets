@@ -6,7 +6,6 @@
  */
 
 import { PlaceholderPage } from '../components/PlaceholderPage';
-import { NavPathStack } from '@kit.ArkUI';
 
 @ComponentV2
 export struct LoginPage {

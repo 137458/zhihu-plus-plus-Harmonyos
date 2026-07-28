@@ -74,16 +74,18 @@ export interface LoginParams {
 /**
  * 路由参数联合类型。
  *
- * NavPathStack.pushPath 接收 BaseNavPath 或具名参数对象；
+ * NavPathStack.pushPath 接收 BaseNavName 或具名参数对象；
  * 在 NavDestination 内部通过 parameters 字段拿到对应类型。
+ *
+ * 注意：不含 Record<string, string>，避免 ArkTS 严格模式下联合类型 + Record
+ * 触发 "object literal type" 错误。所有具体参数类型已覆盖。
  */
 export type RouteParams =
   | QuestionDetailParams
   | AnswerDetailParams
   | ArticleDetailParams
   | ProfileParams
-  | LoginParams
-  | Record<string, string>;
+  | LoginParams;
 
 /** 路由栈项的统一结构，供自定义工具函数使用 */
 export interface RouteStackEntry {

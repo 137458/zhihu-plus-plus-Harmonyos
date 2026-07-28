@@ -2,7 +2,10 @@
  * 空态组件
  *
  * 垂直居中显示图标（可选自定义，默认用文字符号代替 SymbolGlyph 避免瞎猜 glyph 名）、
- * 标题与副标题，填满父容器。
+ * 标题与副标题。
+ *
+ * 注意：根容器不设 height('100%')，由调用方通过 layoutWeight 或父容器控制高度；
+ * 同时设 height('100%') 和 layoutWeight 会冲突。
  */
 
 @ComponentV2
@@ -38,7 +41,6 @@ export struct EmptyView {
         .margin({ top: 4 });
     }
     .width('100%')
-    .height('100%')
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center);
   }
