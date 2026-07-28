@@ -46,6 +46,8 @@
     { "name": "profile_not_logged_in_hint", "value": "点击登录以查看你的关注、收藏和历史" },
 
     { "name": "error_unknown_route", "value": "页面未找到" },
-    { "name": "empty_placeholder_symbol", "value": "○" }
+    { "name": "empty_placeholder_symbol", "value": "○" },
+
+    { "name": "permission_internet_reason", "value": "用于加载知乎内容和图片" }
   ]
 }

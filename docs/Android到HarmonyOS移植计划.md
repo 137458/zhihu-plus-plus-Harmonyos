@@ -46,7 +46,7 @@
 | 应用模型 | HarmonyOS NEXT Stage 模型 |
 | 开发语言 | ArkTS |
 | UI 框架 | ArkUI |
-| SDK | HarmonyOS 6.1.1，API 24 |
+| SDK | HarmonyOS 6.1.1，targetSdkVersion=API 24，compatibleSdkVersion=API 23（支持沉浸光感材质） |
 | 构建系统 | Hvigor |
 | 包管理 | OHPM |
 | HarmonyOS 模块 | `entry` 单模块 |
