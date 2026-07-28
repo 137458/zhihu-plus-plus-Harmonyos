@@ -22,6 +22,7 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { ToastUtil } from '../utils/ToastUtil';
+import { PreferencesUtil } from '../utils/PreferencesUtil';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'EntryAbility';
@@ -38,6 +39,10 @@ export default class EntryAbility extends UIAbility {
         : String(err);
       hilog.error(DOMAIN, TAG, 'Failed to set colorMode. Cause: %{public}s', errMsg);
     }
+
+    // 注入 applicationContext 给 PreferencesUtil，供搜索历史等轻量持久化使用
+    PreferencesUtil.init(this.context.getApplicationContext());
+
     hilog.info(DOMAIN, TAG, 'onCreate: ability created');
   }
 

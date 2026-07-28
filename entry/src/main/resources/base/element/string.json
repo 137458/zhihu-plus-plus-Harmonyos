@@ -41,6 +41,11 @@
     { "name": "placeholder_page_subtitle", "value": "本页面将在后续批次中实现" },
 
     { "name": "search_hint", "value": "搜索知乎内容" },
+    { "name": "search_history_title", "value": "搜索历史" },
+    { "name": "search_hot_title", "value": "知乎热搜" },
+    { "name": "search_clear_history", "value": "清空历史" },
+    { "name": "search_no_results", "value": "没有找到相关内容" },
+    { "name": "search_no_results_hint", "value": "换个关键词试试" },
     { "name": "login_hint", "value": "请使用知乎账号登录" },
     { "name": "profile_not_logged_in", "value": "未登录" },
     { "name": "profile_not_logged_in_hint", "value": "点击登录以查看你的关注、收藏和历史" },

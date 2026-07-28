@@ -18,6 +18,7 @@
     { "name": "card_padding_vertical", "value": "12vp" },
     { "name": "card_title_font_size", "value": "16fp" },
     { "name": "card_summary_font_size", "value": "13fp" },
+    { "name": "card_excerpt_font_size", "value": "13fp" },
     { "name": "card_meta_font_size", "value": "11fp" },
 
     { "name": "body_font_size", "value": "15fp" },
