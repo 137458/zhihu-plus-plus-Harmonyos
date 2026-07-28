@@ -12,15 +12,18 @@
  * - StateView 覆盖层：加载中/空态/错误态切换
  * - 底部加载更多指示器（isLoading 且 items > 0 时显示）
  *
+ * 卡片点击跳转（第 3 批 Slice 2 接入）：
+ * - 由 Index.ets 注入 onCardClick 回调
+ * - HomePage.handleCardClick 根据 card.contentType 分发：
+ *   - QUESTION 类型 → onCardClick(card) → Index.ets 推送到 QuestionDetailPage
+ *   - ANSWER 类型 → onCardClick(card) → Index.ets 推送到 AnswerDetailPage
+ *   - ARTICLE 类型 → onCardClick(card) → Index.ets 推送到 ArticleDetailPage
+ * - 其他类型（PIN/ZVIDEO）暂未实现，预留回调
+ *
  * 状态管理：
  * - @Local viewModel: HomeFeedViewModel（@ObservedV2 + @Trace 单例）
  * - build 中读取 viewModel.items 等字段建立 @Trace 依赖
  * - items 引用变化时触发 build 重新执行，同步到 FeedCardDataSource
- *
- * 测试入口（占位期间，仅 SHOW_TEST_ENTRY=true 时显示）：
- * - titleBar 右上角齿轮按钮（componentId: home_test_push）
- * - 由外层 Index.ets 通过 HdsNavigation menu 提供，点击后 push 到 QuestionDetailPage
- * - 第 3 批接入详情页跳转后移除
  */
 
 import { HomeFeedViewModel } from '../viewmodel/HomeFeedViewModel';
@@ -28,9 +31,23 @@ import { FeedCardDataSource } from '../viewmodel/FeedCardDataSource';
 import { StateView, ViewState } from '../components/StateView';
 import { FeedCardView } from '../components/FeedCardView';
 import { FeedCard } from '../model/FeedCard';
+import { ContentType } from '../model/ContentType';
 
 @ComponentV2
 export struct HomePage {
+  /**
+   * 卡片点击跳转回调，由 Index.ets 注入。
+   *
+   * 参数：
+   * - card: 被点击的 FeedCard
+   *
+   * Index.ets 根据 card.contentType 分发到不同详情页：
+   * - QUESTION → pushPathByName(RouteName.QUESTION_DETAIL, {questionId, previewTitle})
+   * - ANSWER → pushPathByName(RouteName.ANSWER_DETAIL, {answerId})
+   * - ARTICLE → pushPathByName(RouteName.ARTICLE_DETAIL, {articleId})
+   */
+  @Param onCardClick: ((card: FeedCard) => void) | undefined = undefined;
+
   /** ViewModel 单例（@ObservedV2 + @Trace 装饰） */
   @Local viewModel: HomeFeedViewModel = HomeFeedViewModel.getInstance();
 
@@ -66,8 +83,7 @@ export struct HomePage {
                 FeedCardView({
                   card: item,
                   onCardClick: (card: FeedCard) => {
-                    // 第 3 批接入详情页跳转；本批预留空回调
-                    // 点击卡片暂无效果，避免误触
+                    this.handleCardClick(card);
                   }
                 });
               }
@@ -130,5 +146,27 @@ export struct HomePage {
     }
     .width('100%')
     .height('100%');
+  }
+
+  /**
+   * 处理卡片点击，分发到对应详情页跳转回调。
+   *
+   * 由 Index.ets 注入的 onCardClick 回调根据 contentType 分发：
+   * - QUESTION → QuestionDetailPage（本批已实现）
+   * - ANSWER → AnswerDetailPage（Slice 3 实现）
+   * - ARTICLE → ArticleDetailPage（Slice 4 实现）
+   * - 其他 → no-op（避免误触）
+   */
+  private handleCardClick(card: FeedCard): void {
+    const cb = this.onCardClick;
+    if (cb === undefined) {
+      return;
+    }
+    // 仅处理已实现的类型，其他类型暂不跳转
+    if (card.contentType === ContentType.QUESTION
+      || card.contentType === ContentType.ANSWER
+      || card.contentType === ContentType.ARTICLE) {
+      cb(card);
+    }
   }
 }

@@ -11,6 +11,13 @@
  * - 详情页通过 .navDestination(PageMap) 注入，使用 HdsNavDestination（不是 HdsNavigation）
  * - AppToast 作为 Stack 顶层覆盖，仅占底部小区域，不拦截下层点击
  *
+ * 卡片点击跳转（第 3 批 Slice 2 接入）：
+ * - HomePage 通过 @Param onCardClick 回调把卡片点击事件交给 Index.ets
+ * - Index.ets 的 handleCardClick 根据 card.contentType 分发到对应详情页：
+ *   - QUESTION → QuestionDetailPage
+ *   - ANSWER → AnswerDetailPage
+ *   - ARTICLE → ArticleDetailPage
+ *
  * HdsTabs 渐变模糊三要素（缺一不可，运行时不报错但效果不生效）：
  *   1. barOverlap(true)            - TabBar 叠加在内容之上
  *   2. barPosition(BarPosition.End) - 必须位于底部
@@ -37,7 +44,12 @@ import {
   hdsMaterial
 } from '@kit.UIDesignKit';
 import { LengthMetrics } from '@kit.ArkUI';
-import { RouteName, QuestionDetailParams } from '../router/AppRouter';
+import {
+  RouteName,
+  QuestionDetailParams,
+  AnswerDetailParams,
+  ArticleDetailParams
+} from '../router/AppRouter';
 import { AppToast } from '../components/AppToast';
 import { HomePage } from './HomePage';
 import { SearchPage } from './SearchPage';
@@ -47,13 +59,15 @@ import { AnswerDetailPage } from './AnswerDetailPage';
 import { ArticleDetailPage } from './ArticleDetailPage';
 import { LoginPage } from './LoginPage';
 import { SettingsPage } from './SettingsPage';
+import { FeedCard } from '../model/FeedCard';
+import { ContentType } from '../model/ContentType';
 
 /**
  * 测试入口可见性开关。
  *
  * 占位期间设为 true 以便 UiTest 验证路由跳转。
  * 发布前改为 false 隐藏测试入口，避免泄漏到生产。
- * 第 3 批接入详情页跳转后移除该开关。
+ * 第 3 批接入详情页跳转后，生产环境应设为 false（仅保留 onCardClick 真实跳转路径）。
  */
 const SHOW_TEST_ENTRY: boolean = true;
 
@@ -112,7 +126,11 @@ struct Index {
       HdsNavigation(this.navPathStack) {
         HdsTabs({ controller: this.tabsController }) {
           TabContent() {
-            HomePage();
+            HomePage({
+              onCardClick: (card: FeedCard) => {
+                this.handleCardClick(card);
+              }
+            });
           }
           .tabBar({ icon: $r('sys.symbol.house'), text: $r('app.string.tab_home') });
 
@@ -236,10 +254,11 @@ struct Index {
   /**
    * 构造 HdsNavigationMenuContentOptions 包装对象。
    *
-   * 仅在首页 Tab（currentTab === 0）且 SHOW_TEST_ENTRY=true 且 onPushQuestion 不为 undefined 时，
+   * 仅在首页 Tab（currentTab === 0）且 SHOW_TEST_ENTRY=true 时，
    * 返回单项菜单配置；否则返回 undefined，避免 HdsNavigation 渲染空菜单容器。
    *
-   * 后续批次接入详情页跳转后移除测试入口。
+   * 测试入口用于 UiTest 验证路由跳转链路（home_test_push componentId）。
+   * 真实卡片点击跳转由 HomePage.onCardClick → handleCardClick 处理，与本入口并存。
    */
   private buildMenuOptions(): HdsNavigationMenuContentOptions | undefined {
     if (!SHOW_TEST_ENTRY) {
@@ -255,8 +274,8 @@ struct Index {
         isEnabled: true,
         componentId: 'home_test_push',
         action: () => {
-          // 触发 HomePage 注入的 push 回调
-          // 通过 navPathStack 直接 push，与 HomePage onPushQuestion 等价
+          // 测试入口：直接 push 占位参数到 QuestionDetailPage
+          // 真实跳转由 HomePage卡片点击 → handleCardClick 触发
           const params: QuestionDetailParams = {
             questionId: 'placeholder',
             previewTitle: '占位问题'
@@ -270,5 +289,34 @@ struct Index {
       value: items
     };
     return options;
+  }
+
+  /**
+   * 处理首页卡片点击，根据 contentType 分发到对应详情页。
+   *
+   * - QUESTION → QuestionDetailPage（本批 Slice 2 已实现）
+   * - ANSWER → AnswerDetailPage（Slice 3 实现）
+   * - ARTICLE → ArticleDetailPage（Slice 4 实现）
+   * - 其他 → no-op
+   */
+  private handleCardClick(card: FeedCard): void {
+    if (card.contentType === ContentType.QUESTION) {
+      const params: QuestionDetailParams = {
+        questionId: card.rawId,
+        previewTitle: card.title
+      };
+      this.navPathStack.pushPathByName(RouteName.QUESTION_DETAIL, params);
+    } else if (card.contentType === ContentType.ANSWER) {
+      const params: AnswerDetailParams = {
+        answerId: card.rawId
+      };
+      this.navPathStack.pushPathByName(RouteName.ANSWER_DETAIL, params);
+    } else if (card.contentType === ContentType.ARTICLE) {
+      const params: ArticleDetailParams = {
+        articleId: card.rawId
+      };
+      this.navPathStack.pushPathByName(RouteName.ARTICLE_DETAIL, params);
+    }
+    // 其他类型（PIN/ZVIDEO）暂不处理
   }
 }

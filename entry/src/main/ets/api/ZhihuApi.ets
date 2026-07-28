@@ -75,6 +75,10 @@ const QUESTION_DETAIL_PATH: string = '/api/v4/questions';
 const ANSWER_DETAIL_PATH: string = '/api/v4/answers';
 /** 文章详情接口路径 */
 const ARTICLE_DETAIL_PATH: string = '/api/v4/articles';
+/** 问题回答列表接口路径后缀（拼接到 QUESTION_DETAIL_PATH 之后） */
+const QUESTION_FEEDS_SUFFIX: string = '/feeds';
+/** 问题回答列表单页条数 */
+const QUESTION_FEEDS_PAGE_LIMIT: number = 20;
 /**
  * 问题详情 include 参数（逐字来自证据 03 §3，控制返回字段以减少流量）
  * 来源：docs/evidence/03-content-detail.md 问题详情行
@@ -566,6 +570,129 @@ export class ZhihuApi {
   }
 
   /**
+   * 获取问题下的回答列表（feeds）。
+   *
+   * 调用 https://www.zhihu.com/api/v4/questions/{questionId}/feeds?limit=20&order=default，
+   * 返回与首页推荐相同结构的 Feed 列表（data[] + paging）。
+   *
+   * @param questionId 问题 ID
+   * @param pagingNext 下一页 URL（来自上次响应的 paging.next）；首次请求不传
+   * @param order 排序方式：'default'（默认）或 'updated'（按更新时间）
+   * @returns 解析后的 FeedCard 列表和分页信息
+   * @throws ApiError 网络错误、超时、HTTP 错误码、风控拦截、解析失败
+   */
+  async fetchQuestionAnswers(
+    questionId: string,
+    pagingNext?: string,
+    order?: string
+  ): Promise<FeedListResult> {
+    const url: string = this.buildQuestionAnswersUrl(questionId, pagingNext, order);
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchQuestionAnswers: questionId=%{public}s', questionId);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseQuestionAnswersResponse(res.body);
+  }
+
+  /**
+   * 构造问题回答列表请求 URL。
+   *
+   * - 后续请求：直接使用 paging.next（已包含 query 参数）
+   * - 首次请求：拼接 /api/v4/questions/{id}/feeds?limit=20&order={order}
+   *
+   * @param questionId 问题 ID
+   * @param pagingNext 下一页 URL；不传或为空则构造首次请求 URL
+   * @param order 排序方式；不传默认 'default'
+   */
+  private buildQuestionAnswersUrl(questionId: string, pagingNext?: string, order?: string): string {
+    if (pagingNext !== undefined && pagingNext.length > 0) {
+      return pagingNext;
+    }
+    const orderValue: string = order !== undefined && order.length > 0 ? order : 'default';
+    return ZHIHU_WWW_BASE + QUESTION_DETAIL_PATH + '/' + questionId + QUESTION_FEEDS_SUFFIX
+      + '?limit=' + QUESTION_FEEDS_PAGE_LIMIT.toString()
+      + '&order=' + orderValue;
+  }
+
+  /**
+   * 解析问题回答列表响应。
+   *
+   * 风控判定：
+   * - 响应体为空 → PARSE_ERROR
+   * - JSON 解析失败 → PARSE_ERROR
+   * - 响应缺 $.data 字段或非数组 → RISK_CONTROL（疑似风控页/HTML 响应）
+   *
+   * 解析规则：
+   * - 遍历 $.data 数组，每项调用 FeedCard.fromObject
+   * - 解析失败的单项跳过，不影响其他条目
+   * - 从 $.paging 提取分页信息
+   */
+  private parseQuestionAnswersResponse(body: string): FeedListResult {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty response body');
+    }
+
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+
+    const root: RawQuestionFeedsResponse = raw as RawQuestionFeedsResponse;
+    const data: object[] | undefined = root.data;
+    if (data === undefined || !Array.isArray(data)) {
+      // 缺 $.data 字段或非数组，疑似风控响应（HTML 页或重定向）
+      throw ApiError.riskControl('response missing $.data (likely risk control)');
+    }
+
+    const items: FeedCard[] = [];
+    for (let i = 0; i < data.length; i++) {
+      const card: FeedCard | null = FeedCard.fromObject(data[i]);
+      if (card !== null) {
+        items.push(card);
+      }
+      // 解析失败的单项跳过，不影响其他条目
+    }
+
+    let paging: Paging | null = null;
+    const rawPaging: object | undefined = root.paging;
+    if (rawPaging !== undefined) {
+      paging = parsePaging(rawPaging);
+    }
+
+    hilog.info(DOMAIN, TAG, 'parseQuestionAnswersResponse: items=%{public}d paging=%{public}s',
+      items.length, `${paging !== null}`);
+    const result: FeedListResult = {
+      items: items,
+      paging: paging
+    };
+    return result;
+  }
+
+  /**
    * 获取文章详情。
    *
    * 调用 https://www.zhihu.com/api/v4/articles/{articleId}?include=...，
@@ -650,6 +777,12 @@ interface RawFeedResponse {
 
 /** 知乎搜索 API 原始响应形状（snake_case，内部使用） */
 interface RawSearchResponse {
+  data?: object[];
+  paging?: object;
+}
+
+/** 知乎问题回答列表 API 原始响应形状（snake_case，内部使用） */
+interface RawQuestionFeedsResponse {
   data?: object[];
   paging?: object;
 }

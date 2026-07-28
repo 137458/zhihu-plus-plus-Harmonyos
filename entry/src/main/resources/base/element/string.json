@@ -13,6 +13,7 @@
     { "name": "page_home_title", "value": "首页" },
     { "name": "page_search_title", "value": "搜索" },
     { "name": "page_question_detail_title", "value": "问题详情" },
+    { "name": "question_answers_section_title", "value": "回答列表" },
     { "name": "page_answer_detail_title", "value": "回答详情" },
     { "name": "page_article_detail_title", "value": "文章详情" },
     { "name": "page_login_title", "value": "登录" },
