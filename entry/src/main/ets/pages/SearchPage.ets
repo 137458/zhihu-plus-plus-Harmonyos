@@ -1,12 +1,11 @@
 /**
  * 搜索页
  *
- * 作为 TabBar 的第二个 Tab，直接渲染内容（不包 NavDestination）。
+ * 作为 TabBar 的第二个 Tab，直接渲染内容（不再包 HdsNavigation）。
+ * 顶部标题栏由外层 Index.ets 的 HdsNavigation 统一提供。
  *
  * 架构：
- * - HdsNavigation 作为页面级根容器（模式三混合写法 4 字段组合）
- *   - titleMode = MINI
- *   - 顶部渐变模糊 + 沉浸光感材质
+ * - 根容器：Column（搜索输入框 + 内容区）
  * - 顶部 TextInput 搜索输入框（onSubmit 提交）
  * - 内容区状态切换：
  *   - 初始态（!hasSubmitted）：热搜榜单 + 搜索历史
@@ -28,13 +27,6 @@
  * 第 3 批接入详情页跳转后，点击搜索结果会路由到对应内容详情（本批预留空回调）。
  */
 
-import {
-  HdsNavigation,
-  HdsNavigationTitleMode,
-  ScrollEffectType,
-  hdsMaterial
-} from '@kit.UIDesignKit';
-import { LengthMetrics } from '@kit.ArkUI';
 import { SearchViewModel } from '../viewmodel/SearchViewModel';
 import { StateView, ViewState } from '../components/StateView';
 import { SearchResultView } from '../components/SearchResultView';
@@ -42,15 +34,6 @@ import { HotSearchItemView } from '../components/HotSearchItemView';
 import { SearchHistoryItemView } from '../components/SearchHistoryItemView';
 import { SearchResultItem } from '../model/SearchResult';
 import { HotSearchItem } from '../model/HotSearch';
-
-/**
- * 共享的空 NavPathStack。
- *
- * HdsNavigation 作为 UI 容器（仅用 titleBar + 渐变模糊）时传入此栈，
- * 不参与实际路由。所有 SearchPage 实例共用同一个空栈，避免每个实例
- * 都创建独立的 NavPathStack 造成内存浪费。
- */
-const EMPTY_NAV_STACK: NavPathStack = new NavPathStack();
 
 /** 搜索输入框高度 */
 const SEARCH_INPUT_HEIGHT: number = 48;
@@ -79,104 +62,45 @@ export struct SearchPage {
   }
 
   build() {
-    HdsNavigation(EMPTY_NAV_STACK) {
-      Column() {
-        // 搜索输入框
-        Row() {
-          TextInput({ text: this.inputQuery, placeholder: $r('app.string.search_hint') })
-            .width('100%')
-            .height(SEARCH_INPUT_HEIGHT)
-            .fontSize($r('app.float.card_title_font_size'))
-            .fontColor($r('app.color.app_title_bar_on_surface'))
-            .placeholderFont({ size: $r('app.float.card_title_font_size') })
-            .placeholderColor($r('app.color.app_on_surface_secondary'))
-            .backgroundColor($r('app.color.app_surface_variant'))
-            .borderRadius(SEARCH_INPUT_CORNER_RADIUS)
-            .padding({ left: 16, right: 16 })
-            .onChange((value: string) => {
-              this.inputQuery = value;
-            })
-            .onSubmit(() => {
-              this.viewModel.submitQuery(this.inputQuery);
-            });
-        }
-        .width('100%')
-        .padding({
-          left: $r('app.float.page_padding_horizontal'),
-          right: $r('app.float.page_padding_horizontal'),
-          top: $r('app.float.page_padding_vertical'),
-          bottom: $r('app.float.page_padding_vertical')
-        });
-
-        // 内容区：根据状态切换
-        if (this.viewModel.hasSubmitted) {
-          // 已提交搜索：显示结果态
-          this.buildResultArea();
-        } else {
-          // 未提交：显示初始态（热搜 + 历史）
-          this.buildInitialArea();
-        }
+    Column() {
+      // 搜索输入框
+      Row() {
+        TextInput({ text: this.inputQuery, placeholder: $r('app.string.search_hint') })
+          .width('100%')
+          .height(SEARCH_INPUT_HEIGHT)
+          .fontSize($r('app.float.card_title_font_size'))
+          .fontColor($r('app.color.app_title_bar_on_surface'))
+          .placeholderFont({ size: $r('app.float.card_title_font_size') })
+          .placeholderColor($r('app.color.app_on_surface_secondary'))
+          .backgroundColor($r('app.color.app_surface_variant'))
+          .borderRadius(SEARCH_INPUT_CORNER_RADIUS)
+          .padding({ left: 16, right: 16 })
+          .onChange((value: string) => {
+            this.inputQuery = value;
+          })
+          .onSubmit(() => {
+            this.viewModel.submitQuery(this.inputQuery);
+          });
       }
       .width('100%')
-      .height('100%');
-    }
-    .id('page_search_title')
-    .width('100%')
-    .height('100%')
-    .titleMode(HdsNavigationTitleMode.MINI)
-    .hideBackButton(true)
-    .titleBar({
-      padding: {
-        start: LengthMetrics.vp(2),
-        end: LengthMetrics.vp(2)
-      },
-      style: {
-        // 模式三混合写法 4 字段组合
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
-          blurEffectiveStartOffset: LengthMetrics.vp(0),
-          blurEffectiveEndOffset: LengthMetrics.vp(0)
-        },
-        systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.IMMERSIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-        },
-        originalStyle: {
-          backgroundStyle: {
-            backgroundColor: $r('app.color.app_title_bar_background')
-          },
-          contentStyle: {
-            titleStyle: {
-              mainTitleColor: $r('app.color.app_title_bar_on_surface'),
-              subTitleColor: $r('app.color.app_on_surface_secondary')
-            },
-            menuStyle: {
-              backgroundColor: $r('app.color.app_surface_variant'),
-              iconColor: $r('app.color.app_title_bar_on_surface')
-            }
-          }
-        },
-        scrollEffectStyle: {
-          backgroundStyle: {
-            backgroundColor: $r('app.color.app_title_bar_background')
-          },
-          contentStyle: {
-            titleStyle: {
-              mainTitleColor: $r('app.color.app_title_bar_on_surface'),
-              subTitleColor: $r('app.color.app_on_surface_secondary')
-            },
-            menuStyle: {
-              backgroundColor: $r('app.color.app_surface_variant'),
-              iconColor: $r('app.color.app_title_bar_on_surface')
-            }
-          }
-        }
-      },
-      content: {
-        title: { mainTitle: $r('app.string.page_search_title') }
+      .padding({
+        left: $r('app.float.page_padding_horizontal'),
+        right: $r('app.float.page_padding_horizontal'),
+        top: $r('app.float.page_padding_vertical'),
+        bottom: $r('app.float.page_padding_vertical')
+      });
+
+      // 内容区：根据状态切换
+      if (this.viewModel.hasSubmitted) {
+        // 已提交搜索：显示结果态
+        this.buildResultArea();
+      } else {
+        // 未提交：显示初始态（热搜 + 历史）
+        this.buildInitialArea();
       }
-    });
+    }
+    .width('100%')
+    .height('100%');
   }
 
   /**
@@ -255,7 +179,8 @@ export struct SearchPage {
         }
       }
       .width('100%')
-      .alignItems(HorizontalAlign.Start);
+      .alignItems(HorizontalAlign.Start)
+      .padding({ bottom: $r('app.float.content_bottom_padding_tabbar') });
     }
     .width('100%')
     .layoutWeight(1)
@@ -288,7 +213,7 @@ export struct SearchPage {
           left: $r('app.float.page_padding_horizontal'),
           right: $r('app.float.page_padding_horizontal'),
           top: $r('app.float.page_padding_vertical'),
-          bottom: $r('app.float.page_padding_vertical')
+          bottom: $r('app.float.content_bottom_padding_tabbar')
         })
         .onReachEnd(() => {
           this.viewModel.loadMore();
@@ -313,6 +238,7 @@ export struct SearchPage {
       }
 
       // 底部加载更多指示器（有数据 + 正在加载更多时显示）
+      // 定位在 TabBar 上方，避免被悬浮 TabBar 遮挡
       if (this.viewModel.items.length > 0 && this.viewModel.isLoading) {
         Column() {
           LoadingProgress()
@@ -325,7 +251,8 @@ export struct SearchPage {
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .position({ x: 0, y: '100%' })
-        .markAnchor({ x: 0, y: '100%' });
+        .markAnchor({ x: 0, y: '100%' })
+        .offset({ y: -72 });
       }
     }
     .width('100%')
