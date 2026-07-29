@@ -1,18 +1,24 @@
 /**
  * 应用主壳 - HDS 版
  *
- * 架构说明：
- * - HdsNavigation 替代 Navigation，作为路由壳与 NavDestination 分发容器
- * - HdsTabs 替代自定义 TabBar，提供底部渐变模糊（沉浸光感视效）
- * - AppToast 作为 Stack 覆盖层，直接绑定全局 toastState 单例
+ * 架构说明（基于 HDS 官方"沉浸光感"文档示例）：
+ * - HdsNavigation 作为应用一级导航容器，navPathStack 承载详情页路由
+ * - content slot 内放 HdsTabs 作为底部 TabBar 容器
+ * - 每个 TabContent 直接承载 Tab 页面内容（HomePage/SearchPage/ProfilePage）
+ * - Tab 页面不再各自用 HdsNavigation 作为根容器（避免嵌套导致 content slot 塌缩）
+ * - 外层 HdsNavigation 统一提供 titleBar（4 字段模式三混合写法），
+ *   title/menu 内容根据 currentTab 动态切换
+ * - 详情页通过 .navDestination(PageMap) 注入，使用 HdsNavDestination（不是 HdsNavigation）
+ * - AppToast 作为 Stack 顶层覆盖，仅占底部小区域，不拦截下层点击
  *
  * HdsTabs 渐变模糊三要素（缺一不可，运行时不报错但效果不生效）：
- *   1. barOverlap(true)        - TabBar 叠加在内容之上
+ *   1. barOverlap(true)            - TabBar 叠加在内容之上
  *   2. barPosition(BarPosition.End) - 必须位于底部
- *   3. vertical(false)         - 必须水平排列
+ *   3. vertical(false)             - 必须水平排列
  *
- * HdsTabs 模糊不能与原生 Tabs 的 barBackgroundColor / barBackgroundEffect / barBackgroundBlurStyle 混用，
- * 否则 HdsTabs 默认模糊管线被替换。
+ * HdsTabs 渐变模糊通过 barFloatingStyle 配置（不是 barBackgroundStyle，后者不是有效 API）：
+ *   - gradientMask: 渐变蒙版颜色和高度
+ *   - systemMaterialEffect: 沉浸光感材质（IMMERSIVE + ADAPTIVE）
  *
  * 注意：
  * - ArkTS V2 严格语法，@ComponentV2 + @Local
@@ -22,11 +28,16 @@
 
 import {
   HdsNavigation,
+  HdsNavigationTitleMode,
+  HdsNavigationMenuItemOptions,
+  HdsNavigationMenuContentOptions,
   HdsTabs,
-  HdsTabsController
+  HdsTabsController,
+  ScrollEffectType,
+  hdsMaterial
 } from '@kit.UIDesignKit';
+import { LengthMetrics } from '@kit.ArkUI';
 import { RouteName, QuestionDetailParams } from '../router/AppRouter';
-import { toastState } from '../utils/ToastUtil';
 import { AppToast } from '../components/AppToast';
 import { HomePage } from './HomePage';
 import { SearchPage } from './SearchPage';
@@ -38,10 +49,25 @@ import { LoginPage } from './LoginPage';
 import { SettingsPage } from './SettingsPage';
 
 /**
+ * 测试入口可见性开关。
+ *
+ * 占位期间设为 true 以便 UiTest 验证路由跳转。
+ * 发布前改为 false 隐藏测试入口，避免泄漏到生产。
+ * 第 3 批接入详情页跳转后移除该开关。
+ */
+const SHOW_TEST_ENTRY: boolean = true;
+
+/**
  * 路由分发 Builder
  *
- * HdsNavigation 内部封装了 navDestination，通过此 @Builder 函数根据 name 返回目标页。
+ * HdsNavigation 内部通过此 @Builder 函数根据 name 返回 HdsNavDestination 目标页。
  * pushPath({ name: RouteName.XXX }) 触发时被调用。
+ *
+ * 约束（来自 HdsNavigation API 文档）：
+ * - builder 下只能有一个根节点
+ * - builder 中允许在 HdsNavDestination 组件外包含一层自定义组件，
+ *   但自定义组件不允许设置属性和事件，否则仅显示空白
+ * 因此这里直接调用 XxxPage()，不加任何属性。
  *
  * 未知路由 fallback：若 name 不匹配任何已知路由，渲染错误占位页，避免黑屏。
  */
@@ -74,7 +100,7 @@ function PageMap(name: string) {
 @Entry
 @ComponentV2
 struct Index {
-  /** 全局导航栈，承载 push 进入的目标页 */
+  /** 全局导航栈，承载 push 进入的详情页 */
   @Local navPathStack: NavPathStack = new NavPathStack();
   /** 当前选中的 Tab：0=首页, 1=搜索, 2=我的 */
   @Local currentTab: number = 0;
@@ -82,64 +108,38 @@ struct Index {
   private tabsController: HdsTabsController = new HdsTabsController();
 
   build() {
-    Stack({ alignContent: Alignment.Bottom }) {
-      Column() {
-        // HdsNavigation 作为主壳导航容器，hideTitleBar(true) 把顶部空间让给子页面
-        // 子页面（HomePage/SearchPage/ProfilePage 及 push 进入的目标页）自己控制顶栏
-        //
-        // 使用 Stack + visibility 替代 if/else，所有 Tab 页面常驻不销毁，
-        // 避免切换 Tab 时滚动位置/已加载数据丢失。
-        HdsNavigation(this.navPathStack) {
-          Stack() {
-            HomePage({
-              onPushQuestion: () => {
-                const params: QuestionDetailParams = {
-                  questionId: 'placeholder',
-                  previewTitle: '占位问题'
-                };
-                this.navPathStack.pushPathByName(RouteName.QUESTION_DETAIL, params);
-              }
-            })
-              .visibility(this.currentTab === 0 ? Visibility.Visible : Visibility.Hidden);
-
-            SearchPage()
-              .visibility(this.currentTab === 1 ? Visibility.Visible : Visibility.Hidden);
-
-            ProfilePage()
-              .visibility(this.currentTab === 2 ? Visibility.Visible : Visibility.Hidden);
-          }
-          .width('100%')
-          .height('100%');
-        }
-        .navDestination(PageMap)
-        .hideTitleBar(true)
-        .layoutWeight(1);
-
-        // HdsTabs 作为底部 TabBar，提供渐变模糊背景
+    Stack() {
+      HdsNavigation(this.navPathStack) {
         HdsTabs({ controller: this.tabsController }) {
           TabContent() {
-            // 内容区为空，实际内容由 HdsNavigation 根据 currentTab 渲染
-            // HdsTabs 仅作为 TabBar 容器，不承载页面内容
-            Column().width('100%').height('100%');
+            HomePage();
           }
           .tabBar({ icon: $r('sys.symbol.house'), text: $r('app.string.tab_home') });
 
           TabContent() {
-            Column().width('100%').height('100%');
+            SearchPage();
           }
           .tabBar({ icon: $r('sys.symbol.magnifyingglass'), text: $r('app.string.tab_search') });
 
           TabContent() {
-            Column().width('100%').height('100%');
+            ProfilePage();
           }
           .tabBar({ icon: $r('sys.symbol.person'), text: $r('app.string.tab_profile') });
         }
         .barOverlap(true)
         .barPosition(BarPosition.End)
         .vertical(false)
-        .barBackgroundStyle({
-          maskColor: $r('app.color.app_tab_bar_background'),
-          maskHeight: 80
+        .barFloatingStyle({
+          // 渐变蒙版：底部向上的颜色渐变，营造 TabBar 悬浮感
+          gradientMask: {
+            maskColor: $r('app.color.app_tab_bar_background'),
+            maskHeight: 80
+          },
+          // 沉浸光感材质：系统自适应，性能与效果平衡
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.IMMERSIVE,
+            materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          }
         })
         .onChange((index: number) => {
           if (index === this.currentTab) {
@@ -152,14 +152,123 @@ struct Index {
           this.currentTab = index;
         });
       }
-      .width('100%')
-      .height('100%');
+      .navDestination(PageMap)
+      .titleMode(HdsNavigationTitleMode.MINI)
+      .hideBackButton(true)
+      .titleBar({
+        padding: {
+          start: LengthMetrics.vp(2),
+          end: LengthMetrics.vp(2)
+        },
+        style: {
+          // 模式三混合写法 4 字段组合
+          scrollEffectOpts: {
+            enableScrollEffect: true,
+            scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
+            blurEffectiveStartOffset: LengthMetrics.vp(0),
+            blurEffectiveEndOffset: LengthMetrics.vp(0)
+          },
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.IMMERSIVE,
+            materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          },
+          originalStyle: {
+            backgroundStyle: {
+              backgroundColor: $r('app.color.app_title_bar_background')
+            },
+            contentStyle: {
+              titleStyle: {
+                mainTitleColor: $r('app.color.app_title_bar_on_surface'),
+                subTitleColor: $r('app.color.app_on_surface_secondary')
+              },
+              menuStyle: {
+                backgroundColor: $r('app.color.app_surface_variant'),
+                iconColor: $r('app.color.app_title_bar_on_surface')
+              }
+            }
+          },
+          scrollEffectStyle: {
+            backgroundStyle: {
+              backgroundColor: $r('app.color.app_title_bar_background')
+            },
+            contentStyle: {
+              titleStyle: {
+                mainTitleColor: $r('app.color.app_title_bar_on_surface'),
+                subTitleColor: $r('app.color.app_on_surface_secondary')
+              },
+              menuStyle: {
+                backgroundColor: $r('app.color.app_surface_variant'),
+                iconColor: $r('app.color.app_title_bar_on_surface')
+              }
+            }
+          }
+        },
+        content: {
+          title: { mainTitle: this.currentTabTitle() },
+          menu: this.buildMenuOptions()
+        }
+      });
 
-      // Toast 覆盖层：直接绑定全局 toastState 单例
+      // Toast 覆盖层：仅占底部小区域，不拦截下层点击
       AppToast();
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.app_background'));
+  }
+
+  /**
+   * 根据当前 Tab 返回对应的标题资源。
+   *
+   * 外层 HdsNavigation 的 titleBar 由所有 Tab 共用，
+   * 切换 Tab 时 mainTitle 跟随切换，保持原生体验。
+   */
+  private currentTabTitle(): Resource {
+    if (this.currentTab === 0) {
+      return $r('app.string.page_home_title');
+    } else if (this.currentTab === 1) {
+      return $r('app.string.page_search_title');
+    } else {
+      return $r('app.string.page_profile_title');
+    }
+  }
+
+  /**
+   * 构造 HdsNavigationMenuContentOptions 包装对象。
+   *
+   * 仅在首页 Tab（currentTab === 0）且 SHOW_TEST_ENTRY=true 且 onPushQuestion 不为 undefined 时，
+   * 返回单项菜单配置；否则返回 undefined，避免 HdsNavigation 渲染空菜单容器。
+   *
+   * 后续批次接入详情页跳转后移除测试入口。
+   */
+  private buildMenuOptions(): HdsNavigationMenuContentOptions | undefined {
+    if (!SHOW_TEST_ENTRY) {
+      return undefined;
+    }
+    if (this.currentTab !== 0) {
+      return undefined;
+    }
+    const item: HdsNavigationMenuItemOptions = {
+      content: {
+        icon: $r('sys.symbol.chevron_right'),
+        label: '测试入口',
+        isEnabled: true,
+        componentId: 'home_test_push',
+        action: () => {
+          // 触发 HomePage 注入的 push 回调
+          // 通过 navPathStack 直接 push，与 HomePage onPushQuestion 等价
+          const params: QuestionDetailParams = {
+            questionId: 'placeholder',
+            previewTitle: '占位问题'
+          };
+          this.navPathStack.pushPathByName(RouteName.QUESTION_DETAIL, params);
+        }
+      }
+    };
+    const items: HdsNavigationMenuItemOptions[] = [item];
+    const options: HdsNavigationMenuContentOptions = {
+      value: items
+    };
+    return options;
   }
 }
