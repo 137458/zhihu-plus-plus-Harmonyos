@@ -145,7 +145,7 @@ export struct ProfilePage {
         top: $r('app.float.page_padding_vertical'),
         bottom: $r('app.float.content_bottom_padding_tabbar')
       })
-      .alignItems(HorizontalAlign.Stretch);
+      .alignItems(HorizontalAlign.Center);
     }
     .width('100%')
     .height('100%')

@@ -18,17 +18,17 @@
  * 渐变模糊立即生效（blurEffectiveEndOffset = 0vp），即使内容不滚动也有模糊效果。
  */
 
-import { ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { ScrollEffectType, hdsMaterial, TitleBarStyleOptions, PaddingOptions } from '@kit.UIDesignKit';
 import { LengthMetrics } from '@kit.ArkUI';
 
 /**
  * 详情页 titleBar 的 style 配置。
  *
  * 各详情页在 .titleBar({ style: DETAIL_TITLE_BAR_STYLE, ... }) 中引用。
- * 类型不显式标注，由 ArkTS 推断字面量类型，确保与 HdsNavDestination
- * titleBar style 字段兼容。
+ * 类型显式标注为 TitleBarStyleOptions，与 HdsNavDestination.titleBar
+ * 的 style 字段类型一致，避免 ArkTS 严格模式下的 untyped object literal 错误。
  */
-export const DETAIL_TITLE_BAR_STYLE: object = {
+export const DETAIL_TITLE_BAR_STYLE: TitleBarStyleOptions = {
   scrollEffectOpts: {
     enableScrollEffect: true,
     scrollEffectType: ScrollEffectType.GRADIENT_BLUR,
@@ -82,7 +82,7 @@ export const DETAIL_TITLE_BAR_STYLE: object = {
 /**
  * 详情页 titleBar 的 padding 配置。
  */
-export const DETAIL_TITLE_BAR_PADDING: object = {
+export const DETAIL_TITLE_BAR_PADDING: PaddingOptions = {
   start: LengthMetrics.vp(2),
   end: LengthMetrics.vp(2)
 };
