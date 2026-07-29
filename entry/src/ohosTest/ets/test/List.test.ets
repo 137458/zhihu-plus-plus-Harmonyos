@@ -2,10 +2,16 @@ import abilityTest from './Ability.test';
 import zseSignerTest from './ZseSigner.test';
 import networkClientTest from './NetworkClient.test';
 import contentDetailTest from './ContentDetail.test';
+import cookieJarTest from './CookieJar.test';
+import zhihuSessionTest from './ZhihuSession.test';
+import assetStoreTest from './AssetStore.test';
 
 export default function testsuite() {
   abilityTest();
   zseSignerTest();
   networkClientTest();
   contentDetailTest();
+  cookieJarTest();
+  zhihuSessionTest();
+  assetStoreTest();
 }
