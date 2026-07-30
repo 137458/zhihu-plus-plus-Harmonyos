@@ -48,8 +48,18 @@
     { "name": "search_no_results", "value": "没有找到相关内容" },
     { "name": "search_no_results_hint", "value": "换个关键词试试" },
     { "name": "login_hint", "value": "请使用知乎账号登录" },
+    { "name": "login_loading_page", "value": "正在加载登录页" },
+    { "name": "login_detecting", "value": "正在检测登录状态" },
+    { "name": "login_success", "value": "登录成功" },
+    { "name": "login_no_credential", "value": "未检测到登录凭证，请在网页中完成登录" },
+    { "name": "login_load_failed", "value": "登录页加载失败" },
+    { "name": "login_verify_failed", "value": "登录态验证失败，请重试" },
+    { "name": "login_retry", "value": "重新加载" },
+
     { "name": "profile_not_logged_in", "value": "未登录" },
     { "name": "profile_not_logged_in_hint", "value": "点击登录以查看你的关注、收藏和历史" },
+    { "name": "profile_login_entry", "value": "点击登录" },
+    { "name": "profile_logged_in_hint", "value": "已登录知乎账号" },
 
     { "name": "error_unknown_route", "value": "页面未找到" },
     { "name": "empty_placeholder_symbol", "value": "○" },

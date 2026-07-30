@@ -23,12 +23,10 @@ import { ZhihuProfile } from '../model/ZhihuProfile';
 import { AssetStore } from '../api/AssetStore';
 import { AuthApi } from '../api/AuthApi';
 import { CookieJar } from '../api/CookieJar';
+import { ZHIHU_WEB_UA } from '../api/ZhihuConstants';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'SessionViewModel';
-
-/** 默认 User-Agent（与 ZhihuApi 保持一致） */
-const DEFAULT_UA: string = 'Mozilla/5.0 (X11; U; Linux x86_64; en-US) AppleWebKit/540.0 (KHTML, like Gecko) Ubuntu/10.10 Chrome/9.1.0.0 Safari/540.0';
 
 @ObservedV2
 export class SessionViewModel {
@@ -39,6 +37,15 @@ export class SessionViewModel {
   @Trace isLoggedIn: boolean = false;
   /** 用户资料（未登录时为 null） */
   @Trace profile: ZhihuProfile | null = null;
+  /**
+   * 冷启动会话恢复是否已完成。
+   *
+   * EntryAbility 触发 restoreSession() 时设为 false，完成后设为 true。
+   * Index.ets 路由守卫通过 @Monitor 监听此字段：
+   * - 完成且未登录 → push LoginPage
+   * - 完成且已登录 → 不跳转
+   */
+  @Trace isRestored: boolean = false;
 
   /** 当前会话（内存模型） */
   private session: ZhihuSession | null;
@@ -121,6 +128,8 @@ export class SessionViewModel {
       await this.clearSessionInternal();
     } finally {
       this.isRestoring = false;
+      // 通知路由守卫：会话恢复已完成，可基于登录态决定是否跳转登录页
+      this.isRestored = true;
     }
   }
 
@@ -151,7 +160,7 @@ export class SessionViewModel {
 
     // 更新会话
     if (this.session === null) {
-      this.session = ZhihuSession.createEmpty(DEFAULT_UA);
+      this.session = ZhihuSession.createEmpty(ZHIHU_WEB_UA);
     }
     this.session.accessToken = accessToken;
     this.session.refreshToken = newRefreshToken;

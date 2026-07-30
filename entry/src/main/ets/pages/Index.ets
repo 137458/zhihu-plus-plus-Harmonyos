@@ -61,6 +61,7 @@ import { LoginPage } from './LoginPage';
 import { SettingsPage } from './SettingsPage';
 import { FeedCard } from '../model/FeedCard';
 import { ContentType } from '../model/ContentType';
+import { SessionViewModel } from '../viewmodel/SessionViewModel';
 
 /**
  * 测试入口可见性开关。
@@ -120,6 +121,64 @@ struct Index {
   @Local currentTab: number = 0;
   /** HdsTabs 控制器，用于编程式切换 Tab */
   private tabsController: HdsTabsController = new HdsTabsController();
+  /**
+   * 会话 ViewModel（@ObservedV2 + @Trace 单例）。
+   *
+   * 通过 @Local 持有引用，使 @Monitor 能监听其 @Trace 属性变化。
+   * SessionViewModel.isRestored 由 EntryAbility.restoreSession() 完成。
+   */
+  @Local sessionViewModel: SessionViewModel = SessionViewModel.getInstance();
+  /**
+   * 是否已触发过初始登录跳转（防止重复 push）。
+   *
+   * 路由守卫仅在冷启动后第一次 isRestored=true 时触发一次：
+   * - 未登录 → push LoginPage
+   * - 已登录 → 不跳转
+   * 用户从 LoginPage pop 回来后（无论是否登录成功）不再自动跳转，
+   * 避免与用户主动操作冲突。
+   */
+  private hasTriggeredLoginGuard: boolean = false;
+
+  aboutToAppear(): void {
+    // 启动时立即检查一次（防止 isRestored 在组件创建前已为 true）
+    this.maybePushLoginPage();
+  }
+
+  /**
+   * 监听会话恢复完成。
+   *
+   * SessionViewModel.isRestored 在 restoreSession() 的 finally 块中设为 true，
+   * 此回调触发后检查登录态决定是否跳转登录页。
+   */
+  @Monitor('sessionViewModel.isRestored')
+  onSessionRestored(): void {
+    this.maybePushLoginPage();
+  }
+
+  /**
+   * 路由守卫：会话恢复完成且未登录时，push LoginPage。
+   *
+   * 触发条件（全部满足）：
+   * 1. 未触发过登录跳转（hasTriggeredLoginGuard=false）
+   * 2. 会话恢复已完成（isRestored=true）
+   * 3. 未登录（isLoggedIn=false）
+   *
+   * 触发后置位 hasTriggeredLoginGuard=true，防止重复 push。
+   * 用户从 LoginPage pop 返回后不会再次自动跳转，避免与用户主动操作冲突。
+   */
+  private maybePushLoginPage(): void {
+    if (this.hasTriggeredLoginGuard) {
+      return;
+    }
+    if (!this.sessionViewModel.isRestored) {
+      return;
+    }
+    this.hasTriggeredLoginGuard = true;
+    if (this.sessionViewModel.isLoggedIn) {
+      return;
+    }
+    this.navPathStack.pushPathByName(RouteName.LOGIN, null);
+  }
 
   build() {
     Stack() {
@@ -140,7 +199,14 @@ struct Index {
           .tabBar({ icon: $r('sys.symbol.magnifyingglass'), text: $r('app.string.tab_search') });
 
           TabContent() {
-            ProfilePage();
+            ProfilePage({
+              onLoginClick: () => {
+                this.navPathStack.pushPathByName(RouteName.LOGIN, null);
+              },
+              onSettingsClick: () => {
+                this.navPathStack.pushPathByName(RouteName.SETTINGS, null);
+              }
+            });
           }
           .tabBar({ icon: $r('sys.symbol.person'), text: $r('app.string.tab_profile') });
         }
