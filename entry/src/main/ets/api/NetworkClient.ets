@@ -46,6 +46,22 @@ export interface GetRequestOptions {
   onSetCookie?: (cookieString: string) => void;
 }
 
+/** POST 请求选项 */
+export interface PostRequestOptions {
+  /** 请求 URL */
+  url: string;
+  /** 请求头 */
+  headers?: Record<string, string>;
+  /** 请求体字符串 */
+  body: string;
+  /** 连接超时（ms），默认 5000 */
+  connectTimeout?: number;
+  /** 读取超时（ms），默认 10000 */
+  readTimeout?: number;
+  /** 响应头中 Set-Cookie 的回调 */
+  onSetCookie?: (cookieString: string) => void;
+}
+
 /** 默认连接超时（ms）—— 参考 Android 端 5s 配置 */
 const DEFAULT_CONNECT_TIMEOUT: number = 5000;
 /** 默认读取超时（ms）—— 参考 Android 端 10s 配置 */
@@ -75,42 +91,104 @@ export class NetworkClient {
    * @throws ApiError 网络错误、超时、HTTP 错误码
    */
   async get(options: GetRequestOptions): Promise<HttpResponse> {
+    const header: Record<string, string> = options.headers !== undefined ? options.headers : {};
+    const connectTimeout: number = options.connectTimeout !== undefined
+      ? options.connectTimeout
+      : DEFAULT_CONNECT_TIMEOUT;
+    const readTimeout: number = options.readTimeout !== undefined
+      ? options.readTimeout
+      : DEFAULT_READ_TIMEOUT;
+    return this.requestInternal(
+      http.RequestMethod.GET,
+      options.url,
+      header,
+      connectTimeout,
+      readTimeout,
+      options.onSetCookie
+    );
+  }
+
+  /**
+   * 发起 POST 请求
+   *
+   * @param options 请求选项（包含 body）
+   * @returns 响应对象
+   * @throws ApiError 网络错误、超时、HTTP 错误码
+   */
+  async post(options: PostRequestOptions): Promise<HttpResponse> {
+    const header: Record<string, string> = options.headers !== undefined ? options.headers : {};
+    const connectTimeout: number = options.connectTimeout !== undefined
+      ? options.connectTimeout
+      : DEFAULT_CONNECT_TIMEOUT;
+    const readTimeout: number = options.readTimeout !== undefined
+      ? options.readTimeout
+      : DEFAULT_READ_TIMEOUT;
+    return this.requestInternal(
+      http.RequestMethod.POST,
+      options.url,
+      header,
+      connectTimeout,
+      readTimeout,
+      options.onSetCookie,
+      options.body
+    );
+  }
+
+  /**
+   * 请求内部实现（GET/POST 公共逻辑）。
+   *
+   * 统一处理：超时配置、Set-Cookie 回调、HTTP 状态码到 ApiError 转换、资源释放。
+   *
+   * @param method HTTP 方法（GET / POST）
+   * @param url 请求 URL
+   * @param header 请求头
+   * @param connectTimeout 连接超时（ms）
+   * @param readTimeout 读取超时（ms）
+   * @param onSetCookie Set-Cookie 回调（可选）
+   * @param body 请求体（仅 POST 传；GET 传 null）
+   * @returns 响应对象
+   * @throws ApiError 网络错误、超时、HTTP 错误码
+   */
+  private async requestInternal(
+    method: http.RequestMethod,
+    url: string,
+    header: Record<string, string>,
+    connectTimeout: number,
+    readTimeout: number,
+    onSetCookie?: (cookieString: string) => void,
+    body?: string
+  ): Promise<HttpResponse> {
     const req: http.HttpRequest = http.createHttp();
     try {
-      const url: string = options.url;
-      const header: Record<string, string> = options.headers !== undefined ? options.headers : {};
-      const connectTimeout: number = options.connectTimeout !== undefined
-        ? options.connectTimeout
-        : DEFAULT_CONNECT_TIMEOUT;
-      const readTimeout: number = options.readTimeout !== undefined
-        ? options.readTimeout
-        : DEFAULT_READ_TIMEOUT;
-
-      // 发起请求（expectDataType 设为 STRING 确保 result 是 string）
-      const res: http.HttpResponse = await req.request(url, {
-        method: http.RequestMethod.GET,
+      const requestOptions: http.HttpRequestOptions = {
+        method: method,
         header: header,
         connectTimeout: connectTimeout,
         readTimeout: readTimeout,
         expectDataType: http.HttpDataType.STRING
-      });
+      };
+      if (body !== undefined) {
+        requestOptions.extraData = body;
+      }
+
+      const res: http.HttpResponse = await req.request(url, requestOptions);
 
       // 通知 Set-Cookie 回调（如果有）
       // res.header 在 SDK 中声明为 object，ArkTS 严格模式禁止直接索引访问
       // 通过 Object.entries 遍历查找 set-cookie 字段
-      if (options.onSetCookie !== undefined) {
+      if (onSetCookie !== undefined) {
         const setCookie: string | undefined = this.extractSetCookie(res.header);
         if (setCookie !== undefined) {
-          options.onSetCookie(setCookie);
+          onSetCookie(setCookie);
         }
       }
 
       const statusCode: number = res.responseCode;
-      const body: string = typeof res.result === 'string' ? res.result : String(res.result);
+      const responseBody: string = typeof res.result === 'string' ? res.result : String(res.result);
 
       // HTTP 状态码到 ApiError 的转换
       if (statusCode >= HTTP_OK_MIN && statusCode < HTTP_OK_MAX) {
-        return { statusCode, body };
+        return { statusCode, body: responseBody };
       }
       if (statusCode === HTTP_UNAUTHORIZED) {
         throw ApiError.unauthorized(`HTTP ${statusCode}`);
@@ -129,9 +207,10 @@ export class NetworkClient {
         throw err;
       }
       // HarmonyOS http 模块的 BusinessError 包含 code 和 message
+      // 但运行时 err 可能不是 BusinessError，需用 typeof 校验防止类型问题
       const errTyped: BusinessError = err as BusinessError;
-      const errCode: number = errTyped.code;
-      const errMsg: string = errTyped.message;
+      const errCode: number = typeof errTyped.code === 'number' ? errTyped.code : -1;
+      const errMsg: string = typeof errTyped.message === 'string' ? errTyped.message : String(err);
       if (errCode === HTTP_ERROR_CONNECT_TIMEOUT || errCode === HTTP_ERROR_READ_TIMEOUT) {
         throw ApiError.timeout(`connect or read timeout: ${errMsg}`);
       }

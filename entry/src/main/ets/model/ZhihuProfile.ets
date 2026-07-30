@@ -25,6 +25,15 @@ interface RawZhihuProfile {
   user_type?: string;
 }
 
+/** toObject 返回的 JSON 兼容对象形状（snake_case，用于持久化） */
+interface ZhihuProfileObject {
+  id: string;
+  name: string;
+  url_token: string;
+  avatar_url: string;
+  user_type: string;
+}
+
 /** 用户资料 */
 export class ZhihuProfile {
   /** 用户 ID */
@@ -79,9 +88,9 @@ export class ZhihuProfile {
   /**
    * 序列化为 JSON 兼容对象（用于持久化）。
    *
-   * @returns 包含所有字段的对象字面量
+   * @returns 包含所有字段的对象（snake_case，对应知乎 API 格式）
    */
-  toObject(): object {
+  toObject(): ZhihuProfileObject {
     return {
       id: this.id,
       name: this.name,

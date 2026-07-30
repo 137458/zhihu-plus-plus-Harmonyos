@@ -22,6 +22,7 @@
 
 import { asset } from '@kit.AssetStoreKit';
 import { util } from '@kit.ArkTS';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { ZhihuSession } from '../model/ZhihuSession';
 
 /** 资产别名（固定，用于标识会话资产） */
@@ -30,8 +31,8 @@ const SESSION_ALIAS: string = 'zhihu_session';
 /** Asset Store Kit 错误码：资产未找到 */
 const ERR_CODE_ASSET_NOT_FOUND: number = 24000002;
 
-/** Asset Store Kit 错误码：资产已存在 */
-const ERR_CODE_ASSET_ALREADY_EXISTS: number = 24000003;
+const DOMAIN: number = 0x0000;
+const TAG: string = 'AssetStore';
 
 /**
  * 会话安全存储适配层
@@ -88,10 +89,13 @@ export class AssetStore {
           await asset.add(attrs);
           return true;
         } catch (addErr) {
+          hilog.error(DOMAIN, TAG, 'saveSession add failed: %{public}s',
+            addErr instanceof Error ? addErr.message : String(addErr));
           return false;
         }
       }
-      // 其他错误
+      hilog.error(DOMAIN, TAG, 'saveSession update failed (code=%{public}d): %{public}s',
+        errCode, e instanceof Error ? e.message : String(e));
       return false;
     }
   }
@@ -106,7 +110,7 @@ export class AssetStore {
 
     try {
       const query: asset.AssetMap = this.buildAliasQuery(aliasBytes);
-      // 仅返回 SECRET 字段（避免返回敏感的访问控制属性）
+      // 返回所有字段以供解析
       query.set(asset.Tag.RETURN_TYPE, asset.ReturnType.ALL);
 
       const results: Array<asset.AssetMap> = await asset.query(query);
@@ -127,6 +131,8 @@ export class AssetStore {
       }
       return null;
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'loadSession failed: %{public}s',
+        e instanceof Error ? e.message : String(e));
       return null;
     }
   }

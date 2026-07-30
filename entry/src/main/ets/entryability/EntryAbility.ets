@@ -5,17 +5,16 @@
  *
  * | 回调               | 职责                                                                 |
  * | ------------------ | ------------------------------------------------------------------- |
- * | onCreate           | 颜色模式策略；后续批次接入 Push token、网络客户端预热                 |
- * | onWindowStageCreate| 加载主壳 pages/Index；首帧提交后才允许发起网络请求                     |
+ * | onCreate           | 颜色模式策略；PreferencesUtil 初始化                                |
+ * | onWindowStageCreate| 加载主壳 pages/Index；首帧提交后触发会话恢复（restoreSession）        |
  * | onWindowStageDestroy| 取消挂起的 Toast 定时器；释放窗口作用域内的资源                       |
  * | onForeground       | 恢复刷新类定时器、网络监听（后续批次）                                |
  * | onBackground       | 暂停非必要后台请求；不在此释放 UI 资源                                |
  * | onMemoryLevel      | 内存告警时清理非必要缓存（图片缓存、列表缓存），CRITICAL 时清理全部    |
  *
  * 不在此处：
- * - 不读写 Token / Cookie（由 storage/ 层在第 4 批接入）
- * - 不持久化业务状态（由 PersistenceV2 在第 6 批接入）
  * - 不直接调用 ArkUI 组件 API（窗口级操作通过 windowStage 完成）
+ * - 会话恢复通过 SessionViewModel 异步触发，不阻塞首帧
  */
 
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
@@ -23,6 +22,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { ToastUtil } from '../utils/ToastUtil';
 import { PreferencesUtil } from '../utils/PreferencesUtil';
+import { SessionViewModel } from '../viewmodel/SessionViewModel';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'EntryAbility';
@@ -60,8 +60,16 @@ export default class EntryAbility extends UIAbility {
           err.code, err.message ?? String(err));
         return;
       }
-      // 首帧已提交。后续批次的网络预热、Push token 注册等在此之后触发，
-      // 避免冷启动阶段的网络争抢拖慢首帧。
+      // 首帧已提交。触发会话恢复（AssetStore 加载 + 网络验证），不阻塞首帧。
+      // SessionViewModel.restoreSession 内部处理加载/验证/刷新/清除全流程，
+      // 恢复完成后通过 @Trace isLoggedIn/profile 通知 UI 刷新。
+      SessionViewModel.getInstance().restoreSession().then(() => {
+        hilog.info(DOMAIN, TAG, 'Session restore completed. isLoggedIn=%{public}s',
+          String(SessionViewModel.getInstance().isLoggedIn));
+      }).catch((e: object) => {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        hilog.error(DOMAIN, TAG, 'Session restore failed: %{public}s', errMsg);
+      });
       hilog.info(DOMAIN, TAG, 'Succeeded in loading content. First frame committed.');
     });
   }

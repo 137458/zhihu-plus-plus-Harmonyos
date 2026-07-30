@@ -240,7 +240,14 @@ function customEncode(bytesIn: Uint8Array): string {
  */
 function strToUtf8Bytes(str: string): Uint8Array {
   const buf = buffer.from(str, 'utf-8');
-  return new Uint8Array(buf.buffer);
+  // Buffer 继承自 Uint8Array，但 ArkTS 中 buf.buffer 可能不覆盖实际字节范围
+  // 用 buf.length + 逐字节复制确保只取实际使用的字节
+  const len: number = buf.length;
+  const bytes: Uint8Array = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = buf[i];
+  }
+  return bytes;
 }
 
 /**
@@ -293,6 +300,81 @@ function md5Hex(input: string): string {
     throw new Error(`digestSync failed: ${e instanceof Error ? e.message : String(e)}`);
   }
   return bytesToHex(digestBlob.data);
+}
+
+/**
+ * 计算 HMAC-SHA1，返回十六进制小写字符串
+ *
+ * 用于知乎登录签名（sign_in 接口的 signature 字段）。
+ * 使用 @kit.CryptoArchitectureKit 的 Mac API：
+ *   - createSymKeyGenerator('HMAC') 创建密钥生成器
+ *   - convertKeySync({ data: keyBytes }) 转换原始密钥为 SymKey
+ *   - createMac('SHA1') 创建 Mac 实例
+ *   - initSync(symKey) + updateSync({ data: msgBytes }) + doFinalSync()
+ *
+ * @param key - HMAC 密钥字符串
+ * @param message - 待签名消息字符串
+ * @returns 40 字符的 HMAC-SHA1 十六进制字符串
+ * @throws Error 当 cryptoFramework API 调用失败
+ */
+export function hmacSha1Hex(key: string, message: string): string {
+  const keyBytes: Uint8Array = strToUtf8Bytes(key);
+  const msgBytes: Uint8Array = strToUtf8Bytes(message);
+
+  let keyGen: cryptoFramework.SymKeyGenerator;
+  try {
+    keyGen = cryptoFramework.createSymKeyGenerator('HMAC');
+  } catch (e) {
+    throw new Error(`createSymKeyGenerator failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  let symKey: cryptoFramework.SymKey;
+  try {
+    symKey = keyGen.convertKeySync({ data: keyBytes });
+  } catch (e) {
+    throw new Error(`convertKeySync failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  let mac: cryptoFramework.Mac;
+  try {
+    mac = cryptoFramework.createMac('SHA1');
+  } catch (e) {
+    throw new Error(`createMac failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    mac.initSync(symKey);
+  } catch (e) {
+    throw new Error(`mac initSync failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const msgBlob: cryptoFramework.DataBlob = { data: msgBytes };
+  try {
+    mac.updateSync(msgBlob);
+  } catch (e) {
+    throw new Error(`mac updateSync failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  let resultBlob: cryptoFramework.DataBlob;
+  try {
+    resultBlob = mac.doFinalSync();
+  } catch (e) {
+    throw new Error(`mac doFinalSync failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  return bytesToHex(resultBlob.data);
+}
+
+/**
+ * 加密 sign_in 请求体
+ *
+ * 复用 encryptZseV4 对表单数据进行加密。
+ *
+ * @param formData - URL 编码的表单数据字符串
+ * @returns 加密后的字符串
+ */
+export function encryptSignInPayload(formData: string): string {
+  return encryptZseV4(formData);
 }
 
 /**

@@ -22,20 +22,26 @@
 
 import { ZhihuProfile } from './ZhihuProfile';
 
-/** 知乎 API 原始 cookies 对象形状（snake_case，内部使用） */
-interface RawCookies {
-  [key: string]: string;
-}
-
 /** 知乎 API 原始 session 对象形状（内部使用，所有字段可选） */
 interface RawZhihuSession {
   isLoggedIn?: boolean;
   userAgent?: string;
-  cookies?: RawCookies;
+  cookies?: Record<string, string>;
   accessToken?: string;
   refreshToken?: string;
   profile?: object;
   lastRefreshMillis?: number;
+}
+
+/** toObject 返回的 JSON 兼容对象形状（用于持久化） */
+interface ZhihuSessionObject {
+  isLoggedIn: boolean;
+  userAgent: string;
+  cookies: Record<string, string>;
+  accessToken: string | null;
+  refreshToken: string | null;
+  profile: object | null;
+  lastRefreshMillis: number;
 }
 
 /** 会话状态 */
@@ -126,13 +132,15 @@ export class ZhihuSession {
     const lastRefreshMillis: number = typeof data.lastRefreshMillis === 'number' ? data.lastRefreshMillis : 0;
 
     // 解析 cookies（从对象转 Map）
+    // ArkTS 严格模式禁止索引访问 rawCookies[key]，用 Object.entries 遍历
     const cookies: Map<string, string> = new Map<string, string>();
     if (data.cookies !== null && data.cookies !== undefined && typeof data.cookies === 'object') {
-      const rawCookies: RawCookies = data.cookies as RawCookies;
-      const keys: string[] = Object.keys(rawCookies);
-      for (let i: number = 0; i < keys.length; i++) {
-        const key: string = keys[i];
-        const value: string = rawCookies[key];
+      const rawCookies: Record<string, string> = data.cookies as Record<string, string>;
+      const entries: [string, Object][] = Object.entries(rawCookies);
+      for (let i: number = 0; i < entries.length; i++) {
+        const entry: [string, Object] = entries[i];
+        const key: string = entry[0];
+        const value: Object = entry[1];
         if (typeof value === 'string' && value.length > 0) {
           cookies.set(key, value);
         }
@@ -182,7 +190,7 @@ export class ZhihuSession {
    *
    * @returns 包含所有字段的对象
    */
-  toObject(): object {
+  toObject(): ZhihuSessionObject {
     // 将 Map<string, string> 转为对象形式
     const cookiesObj: Record<string, string> = {};
     this.cookies.forEach((value: string, key: string) => {
