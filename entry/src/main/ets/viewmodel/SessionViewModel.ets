@@ -23,10 +23,14 @@ import { ZhihuProfile } from '../model/ZhihuProfile';
 import { AssetStore } from '../api/AssetStore';
 import { AuthApi } from '../api/AuthApi';
 import { CookieJar } from '../api/CookieJar';
+import { NetworkClient } from '../api/NetworkClient';
 import { ZHIHU_WEB_UA } from '../api/ZhihuConstants';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'SessionViewModel';
+
+/** 401 节流时间（ms）：10 秒内不重复刷新 */
+const REFRESH_THROTTLE_MS: number = 10000;
 
 @ObservedV2
 export class SessionViewModel {
@@ -54,12 +58,23 @@ export class SessionViewModel {
   private cookieJar: CookieJar;
   /** 会话恢复进行中标志（防止重入） */
   private isRestoring: boolean = false;
+  /** 上一次 401 刷新尝试的时间戳（用于节流） */
+  private lastRefreshAttempt: number = 0;
+  /**
+   * 退出登录 UI 回调。
+   *
+   * 由 Index.ets 在约到 Appear 时设置，在 logout() 内部清理完成后调用，
+   * 用于清理 WebView Cookie 和重置 NavPathStack。
+   */
+  private logoutCallback: (() => void) | null = null;
 
   private constructor() {
     this.authApi = new AuthApi();
     this.assetStore = AssetStore.getInstance();
     this.cookieJar = CookieJar.getInstance();
     this.session = null;
+    // 注册 401 全局处理器：NetworkClient 遇到 401 时自动调用 refreshAndRetry
+    NetworkClient.setUnauthorizedHandler(() => this.refreshAndRetry());
   }
 
   /** 获取单例 */
@@ -232,12 +247,58 @@ export class SessionViewModel {
   }
 
   /**
+   * 设置退出登录 UI 回调。
+   *
+   * 由 Index.ets 在约到 Appear 时设置，用于清理 WebView Cookie 和重置 NavPathStack。
+   *
+   * @param callback 退出后 UI 清理回调
+   */
+  setLogoutCallback(callback: (() => void) | null): void {
+    this.logoutCallback = callback;
+  }
+
+  /**
+   * 401 刷新令牌（含节流）。
+   *
+   * 由 NetworkClient 全局 unauthorizedHandler 在收到 401 时自动调用。
+   * 节流规则：10 秒内已刷新过直接返回 false（避免连续 401 风暴）。
+   *
+   * 调用 tryRefreshTokens 内部流程：
+   * 1. refreshToken() → 获取新 refresh_token
+   * 2. signIn(refreshToken) → 换取 access_token
+   * 3. fetchVerifiedSession() → 重新验证并获取 profile
+   *
+   * @returns 刷新成功返回 true；失败或节流返回 false
+   */
+  async refreshAndRetry(): Promise<boolean> {
+    const now: number = Date.now();
+    if (now - this.lastRefreshAttempt < REFRESH_THROTTLE_MS) {
+      hilog.info(DOMAIN, TAG, 'refreshAndRetry: throttled');
+      return false;
+    }
+    this.lastRefreshAttempt = now;
+
+    // 需要 z_c0 才能刷新
+    if (!this.cookieJar.hasZc0()) {
+      return false;
+    }
+
+    return this.tryRefreshTokens();
+  }
+
+  /**
    * 退出登录。
    *
    * 清除 AssetStore、CookieJar 和内存会话状态。
+   * 清理完成后调用 logoutCallback（由 Index.ets 设置，用于清理 WebView Cookie 和重置 NavPathStack）。
    */
   async logout(): Promise<void> {
     await this.clearSessionInternal();
+    // 调用 UI 清理回调（WebView Cookie + 导航栈重置）
+    const cb = this.logoutCallback;
+    if (cb !== null) {
+      cb();
+    }
     hilog.info(DOMAIN, TAG, 'logout: session cleared');
   }
 

@@ -44,6 +44,14 @@ export interface GetRequestOptions {
   readTimeout?: number;
   /** 响应头中 Set-Cookie 的回调 */
   onSetCookie?: (cookieString: string) => void;
+  /**
+   * 401 重试时重建请求头的回调。
+   *
+   * 当 token 刷新后，CookieJar 中的 Cookie 已更新，但原始 headers 中的
+   * Cookie 字段已过期。此回调在重试时被调用以获取最新 headers。
+   * 不传时使用原始 headers 重试。
+   */
+  rebuildHeaders?: () => Record<string, string>;
 }
 
 /** POST 请求选项 */
@@ -60,6 +68,14 @@ export interface PostRequestOptions {
   readTimeout?: number;
   /** 响应头中 Set-Cookie 的回调 */
   onSetCookie?: (cookieString: string) => void;
+  /**
+   * 401 重试时重建请求头的回调。
+   *
+   * 当 token 刷新后，CookieJar 中的 Cookie 已更新，但原始 headers 中的
+   * Cookie 字段已过期。此回调在重试时被调用以获取最新 headers。
+   * 不传时使用原始 headers 重试。
+   */
+  rebuildHeaders?: () => Record<string, string>;
 }
 
 /** 默认连接超时（ms）—— 参考 Android 端 5s 配置 */
@@ -84,6 +100,28 @@ const HTTP_ERROR_READ_TIMEOUT: number = 29;
 
 export class NetworkClient {
   /**
+   * 401 未授权全局处理器。
+   *
+   * 由 SessionViewModel 在初始化时设置，当任意请求收到 401 时自动触发：
+   * 1. 调用此处理器尝试刷新 token
+   * 2. 刷新成功 → 重试原请求一次
+   * 3. 刷新失败或未设置处理器 → 抛出 ApiError.unauthorized
+   *
+   * 注意：此设计避免 NetworkClient 与 SessionViewModel 直接耦合，
+   * 处理器通过静态方法注入，不依赖 NetworkClient 构造函数。
+   */
+  private static unauthorizedHandler: (() => Promise<boolean>) | null = null;
+
+  /**
+   * 设置 401 全局处理器。
+   *
+   * @param handler 刷新 token 的异步函数，返回 true 表示刷新成功可重试
+   */
+  static setUnauthorizedHandler(handler: (() => Promise<boolean>) | null): void {
+    NetworkClient.unauthorizedHandler = handler;
+  }
+
+  /**
    * 发起 GET 请求
    *
    * @param options 请求选项
@@ -104,7 +142,9 @@ export class NetworkClient {
       header,
       connectTimeout,
       readTimeout,
-      options.onSetCookie
+      options.onSetCookie,
+      undefined,
+      options.rebuildHeaders
     );
   }
 
@@ -130,7 +170,8 @@ export class NetworkClient {
       connectTimeout,
       readTimeout,
       options.onSetCookie,
-      options.body
+      options.body,
+      options.rebuildHeaders
     );
   }
 
@@ -156,7 +197,8 @@ export class NetworkClient {
     connectTimeout: number,
     readTimeout: number,
     onSetCookie?: (cookieString: string) => void,
-    body?: string
+    body?: string,
+    rebuildHeaders?: () => Record<string, string>
   ): Promise<HttpResponse> {
     const req: http.HttpRequest = http.createHttp();
     try {
@@ -191,6 +233,21 @@ export class NetworkClient {
         return { statusCode, body: responseBody };
       }
       if (statusCode === HTTP_UNAUTHORIZED) {
+        // 401 时尝试全局处理器刷新 token（节流由处理器内部控制）
+        if (NetworkClient.unauthorizedHandler !== null) {
+          const refreshed: boolean = await NetworkClient.unauthorizedHandler();
+          if (refreshed) {
+            // 刷新成功，用 rebuildHeaders 重建 headers（Cookie 已更新）
+            // 不传 rebuildHeaders 时使用原始 headers（至少保证重试可进行）
+            const newHeaders: Record<string, string> = rebuildHeaders !== undefined
+              ? rebuildHeaders()
+              : header;
+            return this.requestInternal(
+              method, url, newHeaders, connectTimeout, readTimeout,
+              onSetCookie, body, rebuildHeaders
+            );
+          }
+        }
         throw ApiError.unauthorized(`HTTP ${statusCode}`);
       }
       if (statusCode === HTTP_NOT_FOUND) {

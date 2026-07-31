@@ -5,6 +5,7 @@ import contentDetailTest from './ContentDetail.test';
 import cookieJarTest from './CookieJar.test';
 import zhihuSessionTest from './ZhihuSession.test';
 import assetStoreTest from './AssetStore.test';
+import authApiTest from './AuthApi.test';
 
 export default function testsuite() {
   abilityTest();
@@ -14,4 +15,5 @@ export default function testsuite() {
   cookieJarTest();
   zhihuSessionTest();
   assetStoreTest();
+  authApiTest();
 }

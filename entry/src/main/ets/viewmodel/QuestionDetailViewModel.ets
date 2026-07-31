@@ -27,9 +27,10 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { QuestionDetail } from '../model/QuestionDetail';
 import { FeedCard } from '../model/FeedCard';
 import { Paging } from '../model/Paging';
-import { ApiError, ApiErrorCode } from '../model/ApiError';
+import { ApiError } from '../model/ApiError';
 import { ZhihuApi, FeedListResult } from '../api/ZhihuApi';
 import { ContentDetailCache } from './ContentDetailCache';
+import { mapApiError } from '../utils/ErrorMessageUtil';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'QuestionDetailViewModel';
@@ -177,7 +178,7 @@ export class QuestionDetailViewModel {
       const result: FeedListResult = await this.api.fetchQuestionAnswers(this.questionId, nextUrl);
       // 去重追加，重新赋值触发 @Trace
       const newAnswers: FeedCard[] = [...this.answers];
-      this.dedupeAppend(newAnswers, result.items);
+      this.dedupeAppend(newAnswers, result.items, (item: FeedCard) => item.stableKey);
       this.answers = newAnswers;
       this.answersPaging = result.paging;
     } catch (err) {
@@ -222,18 +223,23 @@ export class QuestionDetailViewModel {
   }
 
   /**
-   * 去重追加新条目到 answers 数组（基于 stableKey 去重）。
+   * 去重追加新条目到 answers 数组（基于 keyExtractor 去重）。
+   *
+   * 与 BasePaginationViewModel.dedupeAppend 保持一致的签名模式，
+   * 但因 @ObservedV2 不支持泛型无法继承，故本地实现。
    *
    * @param items 当前 answers 数组（会被修改）
    * @param newItems 新条目数组
+   * @param keyExtractor 从条目中提取去重 key 的函数
    */
-  private dedupeAppend(items: FeedCard[], newItems: FeedCard[]): void {
+  private dedupeAppend(items: FeedCard[], newItems: FeedCard[],
+    keyExtractor: (item: FeedCard) => string): void {
     const existingKeys: Set<string> = new Set();
     for (let i = 0; i < items.length; i++) {
-      existingKeys.add(items[i].stableKey);
+      existingKeys.add(keyExtractor(items[i]));
     }
     for (let i = 0; i < newItems.length; i++) {
-      const key: string = newItems[i].stableKey;
+      const key: string = keyExtractor(newItems[i]);
       if (!existingKeys.has(key)) {
         existingKeys.add(key);
         items.push(newItems[i]);
@@ -245,24 +251,6 @@ export class QuestionDetailViewModel {
    * 将错误对象映射为用户可读的错误消息。
    */
   private mapErrorMessage(err: object): string {
-    if (err instanceof ApiError) {
-      if (err.code === ApiErrorCode.NETWORK_ERROR) {
-        return '网络连接失败，请检查网络';
-      }
-      if (err.code === ApiErrorCode.TIMEOUT) {
-        return '请求超时，请稍后重试';
-      }
-      if (err.code === ApiErrorCode.RISK_CONTROL) {
-        return '已被风控，请稍后再试';
-      }
-      if (err.code === ApiErrorCode.UNAUTHORIZED) {
-        return '登录已失效，请重新登录';
-      }
-      if (err.code === ApiErrorCode.SERVER_ERROR) {
-        return '服务器异常，请稍后重试';
-      }
-      return err.message;
-    }
-    return '未知错误';
+    return mapApiError(err);
   }
 }

@@ -47,6 +47,8 @@ const SECTION_TITLE_MARGIN_VERTICAL: number = 12;
 const CLEAR_HISTORY_FONT_SIZE: number = 13;
 /** 列表项间距 */
 const LIST_ITEM_SPACE: number = 8;
+/** 底部加载指示器偏移量（与 content_bottom_padding_tabbar 对齐） */
+const BOTTOM_LOADING_OFFSET: number = -72;
 
 @ComponentV2
 export struct SearchPage {
@@ -145,8 +147,7 @@ export struct SearchPage {
                 this.viewModel.submitQuery(query);
               },
               onRemove: (query: string) => {
-                // 单条删除待扩展，本批用清空全部替代（避免接口膨胀）
-                this.viewModel.clearHistory();
+                this.viewModel.removeHistoryItem(query);
               }
             });
           }, (q: string) => q);
@@ -252,7 +253,7 @@ export struct SearchPage {
         .alignItems(HorizontalAlign.Center)
         .position({ x: 0, y: '100%' })
         .markAnchor({ x: 0, y: '100%' })
-        .offset({ y: -72 });
+        .offset({ y: BOTTOM_LOADING_OFFSET });
       }
     }
     .width('100%')

@@ -22,6 +22,10 @@
 
 import { SessionViewModel } from '../viewmodel/SessionViewModel';
 import { ZhihuProfile } from '../model/ZhihuProfile';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+const DOMAIN: number = 0x0000;
+const TAG: string = 'ProfilePage';
 
 /** 头像尺寸 */
 const AVATAR_SIZE: number = 72;
@@ -45,8 +49,14 @@ const ENTRY_TITLE_FONT_SIZE: number = 15;
 const NICKNAME_FONT_SIZE: number = 17;
 /** 简介字号 */
 const BIO_FONT_SIZE: number = 13;
-/** 昵称下方间距 */
+/** 介绍/已登录提示下方间距 */
 const NICKNAME_BOTTOM_MARGIN: number = 4;
+/** 退出登录按钮区域上边距 */
+const LOGOUT_SECTION_TOP_MARGIN: number = 16;
+/** 退出登录按钮高度 */
+const LOGOUT_BUTTON_HEIGHT: number = 48;
+/** 退出登录按钮字体大小 */
+const LOGOUT_BUTTON_FONT_SIZE: number = 15;
 
 /** 单条功能入口配置 */
 interface ProfileEntryConfig {
@@ -85,12 +95,16 @@ export struct ProfilePage {
   @Param onLoginClick: (() => void) | undefined = undefined;
   /** 设置入口点击回调（由 Index.ets 注入，push SettingsPage） */
   @Param onSettingsClick: (() => void) | undefined = undefined;
+  /** 退出登录回调（由 Index.ets 注入，调用 SessionViewModel.logout + WebCookie 清理 + NavPathStack 重置） */
+  @Param onLogoutClick: (() => void) | undefined = undefined;
 
   /** 会话 ViewModel（@ObservedV2 + @Trace 单例） */
   @Local sessionViewModel: SessionViewModel = SessionViewModel.getInstance();
 
   /** 功能入口配置（静态） */
   @Local entries: ProfileEntryConfig[] = buildProfileEntries();
+  /** 是否显示退出登录确认对话框 */
+  @Local showLogoutDialog: boolean = false;
 
   build() {
     Scroll() {
@@ -98,6 +112,8 @@ export struct ProfilePage {
         // 用户信息卡片：登录态优先，profile=null 时仍按已登录渲染
         if (this.sessionViewModel.isLoggedIn) {
           this.buildLoggedInUserCard();
+          // 已登录状态：显示退出登录按钮
+          this.buildLogoutButton();
         } else {
           this.buildLoggedOutUserCard();
         }
@@ -211,6 +227,72 @@ export struct ProfilePage {
     .backgroundColor($r('app.color.app_surface'))
     .borderRadius(CARD_CORNER_RADIUS)
     .alignItems(VerticalAlign.Center);
+  }
+
+  /**
+   * 退出登录按钮 Builder。
+   *
+   * 仅登录态显示，位于用户信息卡片下方。
+   * 点击弹出确认对话框，确认后触发 onLogoutClick 回调。
+   */
+  @Builder
+  buildLogoutButton() {
+    Column() {
+      Row() {
+        Text($r('app.string.profile_logout_title'))
+          .fontSize(LOGOUT_BUTTON_FONT_SIZE)
+          .fontColor($r('app.color.app_error'))
+          .fontWeight(FontWeight.Medium);
+      }
+      .width('100%')
+      .height(LOGOUT_BUTTON_HEIGHT)
+      .padding({ left: CARD_PADDING, right: CARD_PADDING })
+      .justifyContent(FlexAlign.Center)
+      .onClick(() => {
+        this.showLogoutConfirmDialog();
+      });
+    }
+    .width('100%')
+    .margin({ top: LOGOUT_SECTION_TOP_MARGIN })
+    .backgroundColor($r('app.color.app_surface'))
+    .borderRadius(CARD_CORNER_RADIUS);
+  }
+
+  /**
+   * 显示退出登录确认对话框。
+   *
+   * 使用 AlertDialog.show 弹出确认对话框：
+   * - 确认 → 调用 onLogoutClick 回调
+   * - 取消 → 关闭对话框
+   */
+  private showLogoutConfirmDialog(): void {
+    try {
+      AlertDialog.show({
+        title: $r('app.string.profile_logout_confirm_title'),
+        message: $r('app.string.profile_logout_confirm_message'),
+        autoCancel: true,
+        primaryButton: {
+          value: $r('app.string.profile_logout_cancel'),
+          action: () => {
+            hilog.info(DOMAIN, TAG, 'logout: cancelled by user');
+          }
+        },
+        secondaryButton: {
+          value: $r('app.string.profile_logout_confirm'),
+          fontColor: $r('app.color.app_error'),
+          action: () => {
+            hilog.info(DOMAIN, TAG, 'logout: confirmed by user');
+            const cb = this.onLogoutClick;
+            if (cb !== undefined) {
+              cb();
+            }
+          }
+        }
+      });
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'showLogoutConfirmDialog failed: %{public}s',
+        e instanceof Error ? e.message : String(e));
+    }
   }
 
   /**

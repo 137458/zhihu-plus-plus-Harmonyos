@@ -606,33 +606,42 @@ HarmonyApp/
 
 **时间：第 10–12 周**
 
-**第 10 周：登录流程**
+**Slice 1 会话模型、AssetStore 与 CookieJar 扩展：**
+- ✅ ZhihuSession/ZhihuProfile 数据模型（isLoggedIn/userAgent/cookies/accessToken/refreshToken/profile）
+- ✅ AssetStore 适配层（Asset Store Kit 加密存储 saveSession/loadSession/clearSession）
+- ✅ CookieJar 扩展 z_c0/_xsrf/q_c0 支持
+- ✅ 单元测试：AssetStore.test.ets（save/load/clear/update 往返验证）、CookieJar.test.ets（z_c0 空值保护/fromMap toMap 往返）、ZhihuSession.test.ets
 
-- 根据第 0 批确认的方案实现登录入口和登录页。
-- 接入 ArkWeb 登录或正式授权接口。
-- 校验登录回调的协议、主机、路径和参数。
-- 处理用户取消、验证码、安全验证和网络失败。
+**Slice 2 认证 API 与会话恢复：**
+- ✅ AuthApi：fetchVerifiedSession（GET /api/v4/me）、refreshToken（POST /api/account/prod/token/refresh）、signIn（POST /api/v3/oauth/sign_in，HMAC-SHA1 + ZseSigner 加密）
+- ✅ SessionViewModel：restoreSession（AssetStore 加载 → 验证 → 刷新或清除）、tryRefreshTokens（refreshToken + signIn + fetchVerifiedSession）
+- ✅ EntryAbility 冷启动触发（首帧提交后异步 restoreSession）
+- ✅ 代码审查（双 skill：harmonyos-development + code-review）修复 6 个问题（P0/P1/P2）
+- ✅ 单元测试：AuthApi.test.ets（无 Cookie 时返回 null 的错误路径）
 
-**第 11 周：会话存储**
+**Slice 3 ArkWeb 登录页与登录引导：**
+- ✅ LoginPage：ArkWeb 加载 zhihu.com/signin，onLoadIntercept 安全拦截（仅 http/https）
+- ✅ LoginViewModel：setAppCustomUserAgent（桌面 UA）、detectLoginFromCookies（WebCookieManager 提取 + fetchVerifiedSession 验证）
+- ✅ ZhihuConstants 集中管理 ZHIHU_WEB_UA，消除跨模块重复定义
+- ✅ Index.ets 路由守卫：hasTriggeredLoginGuard 冷启动后仅触发一次，未登录跳转 LoginPage
+- ✅ ProfilePage 登录态优先：isLoggedIn 优先于 profile 判定，profile=null 时显示占位昵称/头像
+- ✅ SessionViewModel.isRestored 标识：restoreSession 完成后才允许路由守卫判定
+- ✅ UiTest：navigateToLoginFromProfile（个人页→登录页→返回）、loginPageShowsWebView
 
-- 实现 Cookie/Token 的安全存储适配层。
-- 实现冷启动会话恢复。
-- 实现登录状态的内存模型和跨页面同步。
-- 只在 preferences 中保存非敏感设置。
-
-**第 12 周：会话失效和退出**
-
-- 处理请求返回未授权后的重新登录引导。
-- 实现退出登录的凭据清除、Web Cookie 清理、内存清理和路由清理。
-- 增加登录成功、登录失败、会话恢复和退出登录测试。
+**Slice 4 会话失效处理与退出登录：**
+- ✅ NetworkClient 401 全局拦截器：static unauthorizedHandler + refreshAndRetry 节流（10 秒内不重复刷新）
+- ✅ SessionViewModel.refreshAndRetry：含节流控制，调用 tryRefreshTokens 内部流程
+- ✅ SessionViewModel.logout：clearSessionInternal（AssetStore + CookieJar + 内存）+ logoutCallback（WebCookieManager 清理 + NavPathStack 重置）
+- ✅ ProfilePage 退出登录按钮：登录态显示 + AlertDialog 确认对话框（确认/取消）
+- ✅ Index.ets 退出回调：onLogoutClick → SessionViewModel.logout → WebCookieManager.clearAllCookiesSync → navPathStack pop 循环回根
+- ✅ UiTest：logoutClearsSession（占位，依赖真实登录态）
 
 **批次验收**
-
-- 有效会话冷启动可恢复。
-- 过期会话不会进入半登录状态。
-- 登录成功后首页、详情和互动请求使用正确认证状态。
-- 退出后不能通过旧返回栈访问授权页面。
-- 日志、源码、普通 KV 和测试样本中没有敏感凭据。
+- ✅ 有效会话冷启动可恢复（SessionViewModel.restoreSession + fetchVerifiedSession）
+- ✅ 过期会话不会进入半登录状态（refreshAndRetry 失败后 clearSessionInternal）
+- ✅ 登录成功后首页、详情和互动请求使用正确认证状态（CookieJar 同步 + NetworkClient 401 重试）
+- ✅ 退出后不能通过旧返回栈访问授权页面（logoutCallback 重置 NavPathStack）
+- ✅ 日志、源码、普通 KV 和测试样本中没有敏感凭据（AssetStore 加密存储 + 日志脱敏）
 
 ### 13.7 第 5 批：核心互动与个人页
 

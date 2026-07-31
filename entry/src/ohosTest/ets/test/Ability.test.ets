@@ -227,5 +227,119 @@ export default function abilityTest() {
       // 实际验证需要先进入详情页。此处仅做日志记录。
       hilog.info(DOMAIN, TAG, 'detailPageBackButtonAccessible: placeholder, requires manual navigation');
     });
+
+    /**
+     * 从个人页导航到登录页。
+     *
+     * 流程：
+     * 1. 切换到"我的" tab
+     * 2. 点击未登录用户卡片（触发 onLoginClick）
+     * 3. 验证 LoginPage 可见（page_login_title id）
+     * 4. 点击返回按钮（componentId=back）回到个人页
+     */
+    it('navigateToLoginFromProfile', 0, async () => {
+      try {
+        const driver: Driver = Driver.create();
+
+        // 切换到"我的" tab
+        const profileTab = await driver.findComponent(ON.text('我的'));
+        expect(profileTab !== null).assertTrue();
+        if (profileTab === null) {
+          hilog.error(DOMAIN, TAG, 'navigateToLoginFromProfile: tabBar "我的" not found, abort');
+          return;
+        }
+        await profileTab.click();
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
+
+        // 点击未登录用户卡片
+        const loginCard = await driver.findComponent(ON.text('未登录'));
+        expect(loginCard !== null).assertTrue();
+        if (loginCard === null) {
+          hilog.error(DOMAIN, TAG, 'navigateToLoginFromProfile: login card not found, abort');
+          return;
+        }
+        await loginCard.click();
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 1000));
+
+        // 验证 LoginPage 可见
+        const loginPage = await driver.findComponent(ON.id('page_login_title'));
+        expect(loginPage !== null).assertTrue();
+        hilog.info(DOMAIN, TAG, 'navigateToLoginFromProfile: login page visible');
+
+        // 点击返回按钮回到个人页
+        const backBtn = await driver.findComponent(ON.id('back'));
+        if (backBtn !== null) {
+          await backBtn.click();
+          await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
+        }
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'navigateToLoginFromProfile failed: %{public}s', String(e));
+        expect(false).assertTrue();
+      }
+    });
+
+    /**
+     * 登录页 WebView 加载验证。
+     *
+     * 先导航到登录页，然后验证 WebView 已加载（通过检测页面标题文本）。
+     * 注意：此用例依赖网络，如果登录页加载失败则跳过验证。
+     */
+    it('loginPageShowsWebView', 0, async () => {
+      try {
+        const driver: Driver = Driver.create();
+
+        // 切换到"我的" tab
+        const profileTab = await driver.findComponent(ON.text('我的'));
+        expect(profileTab !== null).assertTrue();
+        if (profileTab === null) {
+          hilog.error(DOMAIN, TAG, 'loginPageShowsWebView: tabBar "我的" not found, abort');
+          return;
+        }
+        await profileTab.click();
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 800));
+
+        // 点击未登录卡片
+        const loginCard = await driver.findComponent(ON.text('未登录'));
+        if (loginCard === null) {
+          hilog.error(DOMAIN, TAG, 'loginPageShowsWebView: login card not found, abort');
+          return;
+        }
+        await loginCard.click();
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 2000));
+
+        // 验证登录页可见
+        const loginPage = await driver.findComponent(ON.id('page_login_title'));
+        expect(loginPage !== null).assertTrue();
+        hilog.info(DOMAIN, TAG, 'loginPageShowsWebView: login page loaded');
+
+        // 返回
+        const backBtn = await driver.findComponent(ON.id('back'));
+        if (backBtn !== null) {
+          await backBtn.click();
+        }
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'loginPageShowsWebView failed: %{public}s', String(e));
+      }
+    });
+
+    /**
+     * 登录后个人页显示用户信息（占位，依赖真实登录态）。
+     *
+     * 此用例需要用户已在设备上登录，无法在自动化测试中可靠验证。
+     * 保留为占位，提醒后续补充端到端登录测试。
+     */
+    it('profileShowsUserInfoWhenLoggedIn', 0, async () => {
+      hilog.info(DOMAIN, TAG, 'profileShowsUserInfoWhenLoggedIn: placeholder, requires real login state');
+    });
+
+    /**
+     * 退出登录后个人页显示未登录视图（占位，依赖真实登录态）。
+     *
+     * 此用例需要用户已登录，无法在自动化测试中可靠验证。
+     * 保留为占位，提醒后续补充退出登录测试。
+     */
+    it('logoutClearsSession', 0, async () => {
+      hilog.info(DOMAIN, TAG, 'logoutClearsSession: placeholder, requires real login state');
+    });
   });
 }

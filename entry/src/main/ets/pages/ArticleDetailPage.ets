@@ -180,10 +180,16 @@ export struct ArticleDetailPage {
         Text(`▲ ${this.formatCount(detail.voteupCount)}`)
           .fontSize(13)
           .fontColor($r('app.color.app_on_surface_secondary'));
-        Text(`💬 ${this.formatCount(detail.commentCount)}`)
-          .fontSize(13)
-          .fontColor($r('app.color.app_on_surface_secondary'))
-          .margin({ left: 16 });
+        Row() {
+          SymbolGlyph($r('sys.symbol.bubble'))
+            .fontSize(14)
+            .fontColor([$r('app.color.app_on_surface_secondary')]);
+          Text(this.formatCount(detail.commentCount))
+            .fontSize(13)
+            .fontColor($r('app.color.app_on_surface_secondary'))
+            .margin({ left: 4 });
+        }
+        .margin({ left: 16 });
         if (detail.ipInfo.length > 0) {
           Text(`· ${detail.ipInfo}`)
             .fontSize(12)

@@ -61,6 +61,12 @@
     { "name": "profile_login_entry", "value": "点击登录" },
     { "name": "profile_logged_in_hint", "value": "已登录知乎账号" },
 
+    { "name": "profile_logout_title", "value": "退出登录" },
+    { "name": "profile_logout_confirm_title", "value": "确认退出" },
+    { "name": "profile_logout_confirm_message", "value": "确定要退出登录吗？退出后需要重新登录才能使用授权功能。" },
+    { "name": "profile_logout_cancel", "value": "取消" },
+    { "name": "profile_logout_confirm", "value": "确认退出" },
+
     { "name": "error_unknown_route", "value": "页面未找到" },
     { "name": "empty_placeholder_symbol", "value": "○" },
 

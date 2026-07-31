@@ -44,6 +44,8 @@ import {
   hdsMaterial
 } from '@kit.UIDesignKit';
 import { LengthMetrics } from '@kit.ArkUI';
+import { webview } from '@kit.ArkWeb';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   RouteName,
   QuestionDetailParams,
@@ -63,6 +65,9 @@ import { FeedCard } from '../model/FeedCard';
 import { ContentType } from '../model/ContentType';
 import { SessionViewModel } from '../viewmodel/SessionViewModel';
 
+const DOMAIN: number = 0x0000;
+const TAG: string = 'Index';
+
 /**
  * 测试入口可见性开关。
  *
@@ -70,7 +75,7 @@ import { SessionViewModel } from '../viewmodel/SessionViewModel';
  * 发布前改为 false 隐藏测试入口，避免泄漏到生产。
  * 第 3 批接入详情页跳转后，生产环境应设为 false（仅保留 onCardClick 真实跳转路径）。
  */
-const SHOW_TEST_ENTRY: boolean = true;
+const SHOW_TEST_ENTRY: boolean = false;
 
 /**
  * 路由分发 Builder
@@ -140,6 +145,20 @@ struct Index {
   private hasTriggeredLoginGuard: boolean = false;
 
   aboutToAppear(): void {
+    // 设置退出登录 UI 回调（清理 WebView Cookie + 重置导航栈）
+    this.sessionViewModel.setLogoutCallback(() => {
+      // 清理 WebView Cookie（必须在 UI 线程调用）
+      try {
+        webview.WebCookieManager.clearAllCookiesSync();
+      } catch (e) {
+        hilog.error(DOMAIN, TAG, 'clearAllCookiesSync failed: %{public}s',
+          e instanceof Error ? e.message : String(e));
+      }
+      // 重置导航栈到首页（NavPathStack 无 popToRoot，用循环 pop）
+      while (this.navPathStack.size() > 0) {
+        this.navPathStack.pop();
+      }
+    });
     // 启动时立即检查一次（防止 isRestored 在组件创建前已为 true）
     this.maybePushLoginPage();
   }
@@ -205,6 +224,15 @@ struct Index {
               },
               onSettingsClick: () => {
                 this.navPathStack.pushPathByName(RouteName.SETTINGS, null);
+              },
+              onLogoutClick: () => {
+                // 退出登录：异步调用 SessionViewModel.logout，内部自动触发 logoutCallback
+                this.sessionViewModel.logout().then(() => {
+                  hilog.info(DOMAIN, TAG, 'logout: completed');
+                }).catch((e: object) => {
+                  hilog.error(DOMAIN, TAG, 'logout failed: %{public}s',
+                    e instanceof Error ? e.message : String(e));
+                });
               }
             });
           }

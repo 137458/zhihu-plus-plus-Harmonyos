@@ -100,10 +100,16 @@ export struct FeedCardView {
           Text(`▲ ${this.formatCount(this.card.voteupCount)}`)
             .fontSize($r('app.float.card_meta_font_size'))
             .fontColor($r('app.color.app_on_surface_secondary'));
-          Text(`💬 ${this.formatCount(this.card.commentCount)}`)
-            .fontSize($r('app.float.card_meta_font_size'))
-            .fontColor($r('app.color.app_on_surface_secondary'))
-            .margin({ left: 12 });
+          Row() {
+            SymbolGlyph($r('sys.symbol.bubble'))
+              .fontSize(14)
+              .fontColor([$r('app.color.app_on_surface_secondary')]);
+            Text(this.formatCount(this.card.commentCount))
+              .fontSize($r('app.float.card_meta_font_size'))
+              .fontColor($r('app.color.app_on_surface_secondary'))
+              .margin({ left: 4 });
+          }
+          .margin({ left: 12 });
         }
         .layoutWeight(1)
         .justifyContent(FlexAlign.End);

@@ -11,9 +11,10 @@
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { ArticleDetail } from '../model/ArticleDetail';
-import { ApiError, ApiErrorCode } from '../model/ApiError';
+import { ApiError } from '../model/ApiError';
 import { ZhihuApi } from '../api/ZhihuApi';
 import { ContentDetailCache } from './ContentDetailCache';
+import { mapApiError } from '../utils/ErrorMessageUtil';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'ArticleDetailViewModel';
@@ -103,24 +104,6 @@ export class ArticleDetailViewModel {
    * 将错误对象映射为用户可读的错误消息。
    */
   private mapErrorMessage(err: object): string {
-    if (err instanceof ApiError) {
-      if (err.code === ApiErrorCode.NETWORK_ERROR) {
-        return '网络连接失败，请检查网络';
-      }
-      if (err.code === ApiErrorCode.TIMEOUT) {
-        return '请求超时，请稍后重试';
-      }
-      if (err.code === ApiErrorCode.RISK_CONTROL) {
-        return '已被风控，请稍后再试';
-      }
-      if (err.code === ApiErrorCode.UNAUTHORIZED) {
-        return '登录已失效，请重新登录';
-      }
-      if (err.code === ApiErrorCode.SERVER_ERROR) {
-        return '服务器异常，请稍后重试';
-      }
-      return err.message;
-    }
-    return '未知错误';
+    return mapApiError(err);
   }
 }

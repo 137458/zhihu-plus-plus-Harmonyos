@@ -85,18 +85,23 @@ export class CookieJar {
   /**
    * 从 Set-Cookie 头字符串中提取并更新所有支持的 Cookie。
    *
-   * 解析所有 ALLOWED_COOKIE_NAMES 中的 cookie，
+   * 一次解析头字符串，提取所有已知 Cookie 名，
+   * 避免对每个 Cookie 名重复分割字符串。
    * 对 z_c0 应用"空值不写入"规则。
    *
    * @param setCookieHeader Set-Cookie 头字符串
    */
   updateFromSetCookie(setCookieHeader: string): void {
-    const names: string[] = Array.from(ALLOWED_COOKIE_NAMES);
-    for (let i: number = 0; i < names.length; i++) {
-      const name: string = names[i];
-      const value: string | undefined = extractCookie(setCookieHeader, name);
-      if (value !== undefined) {
-        this.setCookie(name, value);
+    const parts: string[] = setCookieHeader.split(';');
+    for (let i: number = 0; i < parts.length; i++) {
+      const part: string = parts[i].trim();
+      const eqIdx: number = part.indexOf('=');
+      if (eqIdx > 0) {
+        const key: string = part.substring(0, eqIdx).trim();
+        const value: string = part.substring(eqIdx + 1).trim();
+        if (ALLOWED_COOKIE_NAMES.has(key) && value.length > 0) {
+          this.cookies.set(key, value);
+        }
       }
     }
   }

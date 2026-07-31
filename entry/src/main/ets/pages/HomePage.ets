@@ -33,6 +33,9 @@ import { FeedCardView } from '../components/FeedCardView';
 import { FeedCard } from '../model/FeedCard';
 import { ContentType } from '../model/ContentType';
 
+/** 底部加载指示器偏移量（与 content_bottom_padding_tabbar 对齐） */
+const BOTTOM_LOADING_OFFSET: number = -72;
+
 @ComponentV2
 export struct HomePage {
   /**
@@ -141,7 +144,7 @@ export struct HomePage {
         .alignItems(HorizontalAlign.Center)
         .position({ x: 0, y: '100%' })
         .markAnchor({ x: 0, y: '100%' })
-        .offset({ y: -72 });
+        .offset({ y: BOTTOM_LOADING_OFFSET });
       }
     }
     .width('100%')

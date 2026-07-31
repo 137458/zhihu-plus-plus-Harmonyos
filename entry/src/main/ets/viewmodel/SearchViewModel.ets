@@ -34,10 +34,11 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { SearchResultItem } from '../model/SearchResult';
 import { HotSearchItem } from '../model/HotSearch';
 import { Paging } from '../model/Paging';
-import { ApiError, ApiErrorCode } from '../model/ApiError';
+import { ApiError } from '../model/ApiError';
 import { BasePaginationViewModel } from './BasePaginationViewModel';
 import { ZhihuApi, SearchListResult } from '../api/ZhihuApi';
 import { PreferencesUtil } from '../utils/PreferencesUtil';
+import { mapApiError } from '../utils/ErrorMessageUtil';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'SearchViewModel';
@@ -220,6 +221,23 @@ export class SearchViewModel extends BasePaginationViewModel<SearchResultItem> {
   }
 
   /**
+   * 删除单条搜索历史并持久化。
+   *
+   * @param q 要删除的查询词
+   */
+  async removeHistoryItem(q: string): Promise<void> {
+    const filtered: string[] = [];
+    for (let i = 0; i < this.searchHistory.length; i++) {
+      if (this.searchHistory[i] !== q) {
+        filtered.push(this.searchHistory[i]);
+      }
+    }
+    this.searchHistory = filtered;
+    await PreferencesUtil.putStringList(SEARCH_HISTORY_KEY, filtered);
+    hilog.info(DOMAIN, TAG, 'removeHistoryItem: removed %{public}s', q);
+  }
+
+  /**
    * 清空搜索历史并持久化。
    */
   async clearHistory(): Promise<void> {
@@ -270,24 +288,6 @@ export class SearchViewModel extends BasePaginationViewModel<SearchResultItem> {
    * - 其他: err.message
    */
   private mapErrorMessage(err: object): string {
-    if (err instanceof ApiError) {
-      if (err.code === ApiErrorCode.NETWORK_ERROR) {
-        return '网络连接失败，请检查网络';
-      }
-      if (err.code === ApiErrorCode.TIMEOUT) {
-        return '请求超时，请稍后重试';
-      }
-      if (err.code === ApiErrorCode.RISK_CONTROL) {
-        return '已被风控，请稍后再试';
-      }
-      if (err.code === ApiErrorCode.UNAUTHORIZED) {
-        return '登录已失效，请重新登录';
-      }
-      if (err.code === ApiErrorCode.SERVER_ERROR) {
-        return '服务器异常，请稍后再试';
-      }
-      return err.message;
-    }
-    return '未知错误';
+    return mapApiError(err);
   }
 }

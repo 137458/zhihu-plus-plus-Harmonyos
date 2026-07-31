@@ -107,6 +107,38 @@ export class ZhihuApi {
   }
 
   /**
+   * 创建 rebuildHeaders 回调，用于 NetworkClient 401 重试时重建请求头。
+   *
+   * 401 重试时 CookieJar 可能已更新（token 刷新），但原始 headers 中的
+   * x-zse-96 和 Cookie 字段已过期，需要基于当前 CookieJar 状态重建。
+   *
+   * @param url 请求 URL（用于重建 zse 签名）
+   * @param baseHeaders 原始请求头（保留常量字段，覆盖动态字段）
+   * @returns rebuildHeaders 回调
+   */
+  private makeRebuildHeaders(url: string, baseHeaders: Record<string, string>): () => Record<string, string> {
+    return () => {
+      const dc0: string | undefined = this.cookieJar.getDc0();
+      const dc0Value: string = dc0 !== undefined ? dc0 : '';
+      const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+      const cookieHeader: string = this.cookieJar.buildCookieHeader();
+      // 从 baseHeaders 复制常量字段，覆盖动态字段
+      const newHeaders: Record<string, string> = {};
+      const entries: [string, string][] = Object.entries(baseHeaders);
+      for (let i = 0; i < entries.length; i++) {
+        const entry: [string, string] = entries[i];
+        newHeaders[entry[0]] = entry[1];
+      }
+      newHeaders['x-zse-96'] = zse96;
+      newHeaders['x-zse-93'] = ZSE93_VERSION;
+      if (cookieHeader.length > 0) {
+        newHeaders['Cookie'] = cookieHeader;
+      }
+      return newHeaders;
+    };
+  }
+
+  /**
    * 获取首页推荐信息流。
    *
    * @param pagingNext 下一页 URL（来自上次响应的 paging.next）；首次请求不传
@@ -132,6 +164,7 @@ export class ZhihuApi {
     const options: GetRequestOptions = {
       url: url,
       headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
       onSetCookie: (setCookie: string) => {
         this.cookieJar.updateFromSetCookie(setCookie);
       }
@@ -245,6 +278,7 @@ export class ZhihuApi {
     const options: GetRequestOptions = {
       url: url,
       headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
       onSetCookie: (setCookie: string) => {
         this.cookieJar.updateFromSetCookie(setCookie);
       }
@@ -359,6 +393,7 @@ export class ZhihuApi {
     const options: GetRequestOptions = {
       url: url,
       headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
       onSetCookie: (setCookie: string) => {
         this.cookieJar.updateFromSetCookie(setCookie);
       }
@@ -449,6 +484,7 @@ export class ZhihuApi {
     const options: GetRequestOptions = {
       url: url,
       headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
       onSetCookie: (setCookie: string) => {
         this.cookieJar.updateFromSetCookie(setCookie);
       }
@@ -525,6 +561,7 @@ export class ZhihuApi {
     const options: GetRequestOptions = {
       url: url,
       headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
       onSetCookie: (setCookie: string) => {
         this.cookieJar.updateFromSetCookie(setCookie);
       }
@@ -606,6 +643,7 @@ export class ZhihuApi {
     const options: GetRequestOptions = {
       url: url,
       headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
       onSetCookie: (setCookie: string) => {
         this.cookieJar.updateFromSetCookie(setCookie);
       }
@@ -724,6 +762,7 @@ export class ZhihuApi {
     const options: GetRequestOptions = {
       url: url,
       headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
       onSetCookie: (setCookie: string) => {
         this.cookieJar.updateFromSetCookie(setCookie);
       }

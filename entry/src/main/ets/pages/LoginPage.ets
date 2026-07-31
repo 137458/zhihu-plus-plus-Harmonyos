@@ -150,6 +150,7 @@ export struct LoginPage {
     })
     .titleMode(HdsNavDestinationTitleMode.MINI)
     .hideBackButton(false)
+    .id('page_login_title')
     .onReady((ctx: NavDestinationContext) => {
       this.navPathStack = ctx.pathStack;
     });

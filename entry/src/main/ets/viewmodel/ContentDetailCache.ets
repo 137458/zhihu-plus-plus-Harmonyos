@@ -157,18 +157,15 @@ export class ContentDetailCache {
   /**
    * 获取最近最少使用的 key（Map 保持插入顺序，第一个即 LRU 候选）。
    *
-   * ArkTS 严格模式下不支持 IteratorResult 协议的便捷解构，
-   * 用 forEach 遍历一次取第一个 key。
+   * 用 Array.from 取第一个 key，比 forEach 遍历全表更简洁高效。
    *
    * @returns 最近最少使用的 key；缓存为空返回 null
    */
   private getOldestKey(): string | null {
-    let oldestKey: string | null = null;
-    this.cache.forEach((_value: CacheEntry, key: string) => {
-      if (oldestKey === null) {
-        oldestKey = key;
-      }
-    });
-    return oldestKey;
+    const keys: string[] = Array.from(this.cache.keys());
+    if (keys.length > 0) {
+      return keys[0];
+    }
+    return null;
   }
 }
