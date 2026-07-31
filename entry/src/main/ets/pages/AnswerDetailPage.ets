@@ -45,8 +45,12 @@ export struct AnswerDetailPage {
     if (this.initialized) {
       return;
     }
-    this.initialized = true;
+    // NavDestination 的路由参数仅在 onReady 中可用，而 aboutToAppear 由 ArkUI
+    // 生命周期在 onReady 之前自动调用（此时 answerId 仍为初始空串）。
+    // 仅当 ID 真正可用时才标记 initialized，使 onReady 设置 ID 后再次调用
+    // aboutToAppear 时能继续创建 ViewModel 并加载数据，避免页面永久停留在空态。
     if (this.answerId.length > 0) {
+      this.initialized = true;
       this.viewModel = AnswerDetailViewModel.getInstance(this.answerId);
       this.viewModel.load();
     }
