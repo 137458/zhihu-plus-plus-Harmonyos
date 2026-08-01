@@ -724,6 +724,23 @@ HarmonyApp/
   - 新增字符串资源：13 个收藏相关字符串
   - 构建验证：BUILD SUCCESSFUL
 
+**实际实现（第 5 批 Slice 5，2026-08-01 交付）：**
+
+- ✅ Slice 5 评论列表（CommentViewModel + CommentListView）：
+  - 新增 `Comment` 模型（class，含 id/content/createdTime/liked/likeCount/childCommentCount/author/replyToAuthor/commentTag/isAuthor/collapsed 等字段）
+  - 新增 `CommentViewModel`（@ObservedV2 + @Trace），管理根评论列表加载和分页
+  - 根评论列表：`GET /api/v4/comment_v5/{contentType}s/{contentId}/root_comment?order_by=score&limit=20`，走 x-zse-93/96 签名
+  - 分页加载：支持 `loadMore()` 触底加载下一页，去重追加
+  - 双重保护：isLoading + isEnd 避免重复请求
+  - 新增 `CommentListView` 组件：展示评论列表，每项含作者头像/名称/内容/时间/点赞数/子评论数/评论标签
+  - 相对时间显示：刚刚 / X 分钟前 / X 小时前 / X 天前 / MM-DD
+  - 首发只读，不支持发表评论/子评论/点赞评论
+  - 新增 `RootCommentsResult` 接口和 `commentListFromArray`/`Comment.fromObject` 解析函数
+  - 集成到 `AnswerDetailPage` 和 `ArticleDetailPage`：评论按钮点击展开/收起评论区
+  - 首次点击评论按钮时自动加载，已加载后不重复拉取
+  - 新增字符串资源：12 个评论相关字符串
+  - 构建验证：BUILD SUCCESSFUL
+
 ### 13.8 第 6 批：产品增强能力
 
 **时间：第 16–18 周**

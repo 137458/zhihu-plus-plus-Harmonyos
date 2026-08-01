@@ -29,6 +29,8 @@ import { VotersViewModel, VoteContentType } from '../viewmodel/VotersViewModel';
 import { VoteState } from '../model/VoteState';
 import { CollectionsViewModel, CollectionContentType } from '../viewmodel/CollectionsViewModel';
 import { CollectionPickerDialog } from '../components/CollectionPickerDialog';
+import { CommentViewModel } from '../viewmodel/CommentViewModel';
+import { CommentListView } from '../components/CommentListView';
 import { SessionViewModel } from '../viewmodel/SessionViewModel';
 import { ToastUtil } from '../utils/ToastUtil';
 
@@ -53,6 +55,10 @@ export struct ArticleDetailPage {
   @Local showCollectionDialog: boolean = false;
   /** 会话 ViewModel */
   private sessionVM: SessionViewModel = SessionViewModel.getInstance();
+  /** 评论 ViewModel */
+  @Local commentVM: CommentViewModel | null = null;
+  /** 是否显示评论列表 */
+  @Local showComments: boolean = false;
 
   aboutToAppear() {
     if (this.initialized) {
@@ -77,6 +83,10 @@ export struct ArticleDetailPage {
           this.collectionsVM.loadCollections(urlToken);
         }
         this.collectionsVM.loadContentCollections('article', this.viewModel.detail.id);
+      }
+      // 初始化评论 ViewModel
+      if (this.commentVM === null) {
+        this.commentVM = new CommentViewModel('articles', this.viewModel.detail.id);
       }
     }
   }
@@ -220,7 +230,7 @@ export struct ArticleDetailPage {
       .layoutWeight(1)
       .width('100%');
 
-      // 底部统计栏（含点赞按钮）
+      // 底部统计栏（含点赞/收藏/评论按钮）
       Row() {
         // 点赞按钮
         Row() {
@@ -266,7 +276,10 @@ export struct ArticleDetailPage {
             .fontColor($r('app.color.app_on_surface_secondary'))
             .margin({ left: 4 });
         }
-        .margin({ left: 16 });
+        .margin({ left: 16 })
+        .onClick(() => {
+          this.handleCommentClick();
+        });
         if (detail.ipInfo.length > 0) {
           Text(`· ${detail.ipInfo}`)
             .fontSize(12)
@@ -277,6 +290,14 @@ export struct ArticleDetailPage {
       .width('100%')
       .padding({ left: 16, right: 16, top: 12, bottom: 12 })
       .justifyContent(FlexAlign.Start);
+
+      // 评论列表
+      if (this.commentVM !== null && this.showComments) {
+        CommentListView({
+          viewModel: this.commentVM,
+          totalCount: detail.commentCount
+        });
+      }
 
       // 错误信息
       if (this.viewModel !== null && this.viewModel.errorMessage.length > 0) {
@@ -343,6 +364,18 @@ export struct ArticleDetailPage {
       return;
     }
     this.votersVM.toggleVoteUp(contentId, VoteContentType.ARTICLE);
+  }
+
+  /**
+   * 处理评论按钮点击。
+   *
+   * 切换评论列表的显示/隐藏。首次点击时自动加载评论。
+   */
+  private handleCommentClick(): void {
+    this.showComments = !this.showComments;
+    if (this.showComments && this.commentVM !== null && !this.commentVM.loaded && !this.commentVM.isLoading) {
+      this.commentVM.loadComments();
+    }
   }
 
   // ──── 收藏相关方法 ────

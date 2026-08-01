@@ -103,6 +103,17 @@
     { "name": "collection_login_hint", "value": "请先登录" },
     { "name": "collection_public", "value": "公开" },
     { "name": "collection_private", "value": "私密" },
-    { "name": "collection_item_count", "value": "条内容" }
+    { "name": "collection_item_count", "value": "条内容" },
+    { "name": "comment_section_title", "value": "评论" },
+    { "name": "comment_loading_more", "value": "加载中..." },
+    { "name": "comment_no_more", "value": "没有更多评论了" },
+    { "name": "comment_load_more", "value": "加载更多" },
+    { "name": "comment_reply_prefix", "value": "回复 @" },
+    { "name": "comment_reply_count", "value": "条回复" },
+    { "name": "comment_error_network", "value": "网络错误，请检查网络连接" },
+    { "name": "comment_error_timeout", "value": "请求超时，请稍后重试" },
+    { "name": "comment_error_risk", "value": "请求被拦截，请稍后重试" },
+    { "name": "comment_error_generic", "value": "加载评论失败" },
+    { "name": "comment_load_more_failed", "value": "加载更多评论失败" }
   ]
 }

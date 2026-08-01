@@ -27,6 +27,7 @@ import { QuestionDetail } from '../model/QuestionDetail';
 import { AnswerDetail } from '../model/AnswerDetail';
 import { ArticleDetail } from '../model/ArticleDetail';
 import { Collection, collectionListFromArray } from '../model/Collection';
+import { Comment, commentListFromArray } from '../model/Comment';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN: number = 0x0000;
@@ -1292,14 +1293,20 @@ export class ZhihuApi {
    *
    * @param contentType 内容类型（answers / articles）
    * @param contentId 内容 ID
-   * @param offset 分页偏移（可选）
-   * @returns 原始 JSON 响应对象
+   * @param offset 分页偏移（可选，仅在首次请求时使用）
+   * @param pagingNext 下一页 URL（来自上次响应的 paging.next）；有值时优先使用
+   * @returns 评论列表和分页信息
    * @throws ApiError 网络错误、风控等
    */
-  async fetchRootComments(contentType: string, contentId: string, offset?: number): Promise<object> {
-    let url: string = COMMENT_V5_BASE + '/' + contentType + 's/' + contentId + '/root_comment?order_by=score&limit=20';
-    if (offset !== undefined && offset > 0) {
-      url = url + '&offset=' + offset.toString();
+  async fetchRootComments(contentType: string, contentId: string, offset?: number, pagingNext?: string): Promise<RootCommentsResult> {
+    let url: string;
+    if (pagingNext !== undefined && pagingNext.length > 0) {
+      url = pagingNext;
+    } else {
+      url = COMMENT_V5_BASE + '/' + contentType + 's/' + contentId + '/root_comment?order_by=score&limit=20';
+      if (offset !== undefined && offset > 0) {
+        url = url + '&offset=' + offset.toString();
+      }
     }
     const dc0: string | undefined = this.cookieJar.getDc0();
     const dc0Value: string = dc0 !== undefined ? dc0 : '';
@@ -1326,10 +1333,48 @@ export class ZhihuApi {
       }
     };
 
-    hilog.info(DOMAIN, TAG, 'fetchRootComments: contentType=%{public}s contentId=%{public}s offset=%{public}d',
-      contentType, contentId, offset !== undefined ? offset : 0);
+    hilog.info(DOMAIN, TAG, 'fetchRootComments: contentType=%{public}s contentId=%{public}s',
+      contentType, contentId);
     const res: HttpResponse = await this.client.get(options);
-    return this.parseRawJsonResponse(res.body);
+    return this.parseRootCommentsResponse(res.body);
+  }
+
+  /**
+   * 解析根评论列表响应。
+   *
+   * 风控判定：
+   * - 响应体为空 → PARSE_ERROR
+   * - JSON 解析失败 → PARSE_ERROR
+   * - 响应缺 $.data 字段或非数组 → RISK_CONTROL
+   *
+   * 解析规则：
+   * - 遍历 $.data 数组，每项调用 Comment.fromObject
+   * - 解析失败的单项跳过，不影响其他条目
+   * - 从 $.paging 提取分页信息
+   */
+  private parseRootCommentsResponse(body: string): RootCommentsResult {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty root comments response body');
+    }
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('root comments response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+    const root: RawRootCommentsResponse = raw as RawRootCommentsResponse;
+    const data: object[] | undefined = root.data;
+    if (data === undefined || !Array.isArray(data)) {
+      throw ApiError.riskControl('root comments response missing $.data (likely risk control)');
+    }
+    const items: Comment[] = commentListFromArray(data);
+    let paging: Paging | null = null;
+    const rawPaging: object | undefined = root.paging;
+    if (rawPaging !== undefined) {
+      paging = parsePaging(rawPaging);
+    }
+    hilog.info(DOMAIN, TAG, 'parseRootCommentsResponse: items=%{public}d', items.length);
+    return { items: items, paging: paging };
   }
 
   // ──── 通用解析方法 ────
@@ -1440,6 +1485,20 @@ interface RawHotSearchData {
 
 /** 知乎收藏夹列表/内容收藏夹 API 原始响应形状（snake_case，内部使用） */
 interface RawCollectionsResponse {
+  data?: object[];
+  paging?: object;
+}
+
+/** 根评论列表结果 */
+export interface RootCommentsResult {
+  /** 评论列表 */
+  items: Comment[];
+  /** 分页信息；null 表示无分页 */
+  paging: Paging | null;
+}
+
+/** 知乎根评论列表 API 原始响应形状（snake_case，内部使用） */
+interface RawRootCommentsResponse {
   data?: object[];
   paging?: object;
 }
