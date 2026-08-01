@@ -101,7 +101,7 @@ export struct FeedCardView {
             .fontSize($r('app.float.card_meta_font_size'))
             .fontColor($r('app.color.app_on_surface_secondary'));
           Row() {
-            SymbolGlyph($r('sys.symbol.bubble'))
+            SymbolGlyph($r('sys.symbol.doc_text'))
               .fontSize(14)
               .fontColor([$r('app.color.app_on_surface_secondary')]);
             Text(this.formatCount(this.card.commentCount))

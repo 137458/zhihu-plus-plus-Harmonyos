@@ -70,6 +70,25 @@
     { "name": "error_unknown_route", "value": "页面未找到" },
     { "name": "empty_placeholder_symbol", "value": "○" },
 
-    { "name": "permission_internet_reason", "value": "用于加载知乎内容和图片" }
+    { "name": "permission_internet_reason", "value": "用于加载知乎内容和图片" },
+
+    { "name": "profile_tab_answers", "value": "回答" },
+    { "name": "profile_tab_articles", "value": "文章" },
+    { "name": "profile_no_answers", "value": "还没有回答过问题" },
+    { "name": "profile_no_articles", "value": "还没有发表过文章" },
+    { "name": "profile_answer_count", "value": "回答" },
+    { "name": "profile_article_count", "value": "文章" },
+    { "name": "profile_follower_count", "value": "粉丝" },
+    { "name": "profile_following_count", "value": "关注" },
+
+    { "name": "settings_theme_title", "value": "主题模式" },
+    { "name": "settings_theme_description", "value": "设置应用的显示主题" },
+    { "name": "settings_theme_system", "value": "跟随系统" },
+    { "name": "settings_theme_light", "value": "浅色" },
+    { "name": "settings_theme_dark", "value": "深色" },
+    { "name": "settings_font_size_title", "value": "正文字号" },
+    { "name": "settings_font_size_description", "value": "调整内容文字大小" },
+    { "name": "settings_font_size_small", "value": "小" },
+    { "name": "settings_font_size_large", "value": "大" }
   ]
 }

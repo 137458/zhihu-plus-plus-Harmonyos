@@ -52,6 +52,11 @@ export class PreferencesUtil {
     return appContext !== undefined;
   }
 
+  /** 获取已注入的 ApplicationContext（用于主题切换等操作） */
+  static getAppContext(): common.Context | undefined {
+    return appContext;
+  }
+
   /**
    * 读取字符串数组。
    *

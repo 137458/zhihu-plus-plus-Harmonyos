@@ -26,6 +26,10 @@ import { AnswerDetailViewModel } from '../viewmodel/AnswerDetailViewModel';
 import { AnswerDetail } from '../model/AnswerDetail';
 import { ArticleWebContainer } from '../web/ArticleWebContainer';
 import { StateView, ViewState } from '../components/StateView';
+import { VotersViewModel, VoteContentType } from '../viewmodel/VotersViewModel';
+import { VoteState } from '../model/VoteState';
+import { SessionViewModel } from '../viewmodel/SessionViewModel';
+import { ToastUtil } from '../utils/ToastUtil';
 
 /** 作者头像尺寸 */
 const AVATAR_SIZE: number = 40;
@@ -40,6 +44,10 @@ export struct AnswerDetailPage {
   @Local viewModel: AnswerDetailViewModel | null = null;
   /** 是否已初始化 */
   @Local initialized: boolean = false;
+  /** 点赞 ViewModel */
+  private votersVM: VotersViewModel = VotersViewModel.getInstance();
+  /** 会话 ViewModel */
+  private sessionVM: SessionViewModel = SessionViewModel.getInstance();
 
   aboutToAppear() {
     if (this.initialized) {
@@ -49,6 +57,14 @@ export struct AnswerDetailPage {
     if (this.answerId.length > 0) {
       this.viewModel = AnswerDetailViewModel.getInstance(this.answerId);
       this.viewModel.load();
+    }
+  }
+
+  /** 监听 ViewModel 变化，在 detail 加载完成后初始化点赞状态 */
+  @Monitor('viewModel')
+  onViewModelChange(): void {
+    if (this.viewModel !== null && this.viewModel.detail !== null) {
+      this.votersVM.initContent(this.viewModel.detail.id, VoteState.NEUTRAL, this.viewModel.detail.voteupCount);
     }
   }
 
@@ -163,13 +179,28 @@ export struct AnswerDetailPage {
       .layoutWeight(1)
       .width('100%');
 
-      // 底部统计栏
+      // 底部统计栏（含点赞按钮）
       Row() {
-        Text(`▲ ${this.formatCount(detail.voteupCount)}`)
-          .fontSize(13)
-          .fontColor($r('app.color.app_on_surface_secondary'));
+        // 点赞按钮
         Row() {
-          SymbolGlyph($r('sys.symbol.bubble'))
+          SymbolGlyph($r('sys.symbol.hand_thumbsup'))
+            .fontSize(16)
+            .fontColor([this.voteButtonColor(detail.id)]);
+          Text(this.formatCount(this.voteDisplayCount(detail.id, detail.voteupCount)))
+            .fontSize(13)
+            .fontColor(this.voteButtonColor(detail.id))
+            .margin({ left: 4 });
+        }
+        .margin({ left: 0 })
+        .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+        .borderRadius(16)
+        .backgroundColor(this.voteButtonBgColor(detail.id))
+        .onClick(() => {
+          this.handleVoteClick(detail.id);
+        });
+        // 评论数
+        Row() {
+          SymbolGlyph($r('sys.symbol.doc_text'))
             .fontSize(14)
             .fontColor([$r('app.color.app_on_surface_secondary')]);
           Text(this.formatCount(detail.commentCount))
@@ -178,8 +209,9 @@ export struct AnswerDetailPage {
             .margin({ left: 4 });
         }
         .margin({ left: 16 });
+        // 感谢数
         Row() {
-          SymbolGlyph($r('sys.symbol.hand_thumbs_up'))
+          SymbolGlyph($r('sys.symbol.hand_thumbsup_fill'))
             .fontSize(14)
             .fontColor([$r('app.color.app_on_surface_secondary')]);
           Text(this.formatCount(detail.thanksCount))
@@ -220,5 +252,49 @@ export struct AnswerDetailPage {
       return wan.toFixed(1) + '万';
     }
     return count.toString();
+  }
+
+  /**
+   * 获取点赞按钮颜色：已点赞为蓝色，否则为次级文字色。
+   */
+  private voteButtonColor(contentId: string): ResourceColor {
+    if (this.votersVM.getVoteState(contentId) === VoteState.UP) {
+      return $r('app.color.app_title_bar_background');
+    }
+    return $r('app.color.app_on_surface_secondary');
+  }
+
+  /**
+   * 获取点赞按钮背景色：已点赞为蓝色，否则透明。
+   */
+  private voteButtonBgColor(contentId: string): ResourceColor {
+    if (this.votersVM.getVoteState(contentId) === VoteState.UP) {
+      return $r('app.color.app_title_bar_background');
+    }
+    return Color.Transparent;
+  }
+
+  /**
+   * 获取显示点赞数：优先使用 VotersViewModel 中的值，否则使用详情页的初始值。
+   */
+  private voteDisplayCount(contentId: string, detailVoteCount: number): number {
+    const vmCount: number = this.votersVM.getVoteCount(contentId);
+    if (vmCount > 0) {
+      return vmCount;
+    }
+    return detailVoteCount;
+  }
+
+  /**
+   * 处理点赞按钮点击。
+   *
+   * 未登录时提示跳转；已登录时调用 VotersViewModel 切换点赞状态。
+   */
+  private handleVoteClick(contentId: string): void {
+    if (!this.sessionVM.isLoggedIn) {
+      ToastUtil.show('请先登录');
+      return;
+    }
+    this.votersVM.toggleVoteUp(contentId, VoteContentType.ANSWER);
   }
 }

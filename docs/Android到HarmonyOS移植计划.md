@@ -676,6 +676,33 @@ HarmonyApp/
 - 评论和个人页分页稳定。
 - 从个人页返回详情页后，导航和滚动上下文符合预期。
 
+**实际实现（第 5 批 Slice 1/3/4，并行交付）：**
+
+- ✅ Slice 1 点赞（VotersViewModel）：
+  - 新增 `VoteState` 枚举（NEUTRAL/UP）和 `VotersViewModel` 单例（@ObservedV2 + @Trace），管理所有内容的点赞状态
+  - 回答：`POST /api/v4/answers/{id}/voters`，body `{"type":"up"|"neutral"}`，走 x-zse-93/96 签名
+  - 文章：`POST /api/v4/articles/{id}/voters`，body `{"voting":1|0}`，走 x-zse-93/96 签名
+  - 乐观更新 + 失败回滚：先更新 UI，API 失败后恢复原状态
+  - 防重复点击：isLoading 标志阻止 API 完成前的重复操作
+  - 未登录时 Toast 提示"请先登录"
+  - 集成到 `AnswerDetailPage` 和 `ArticleDetailPage` 底部统计栏
+  - 新增 `NetworkClient.put()` 方法支持 PUT 请求（供 Slice 2 收藏使用）
+
+- ✅ Slice 3 个人页增强（ProfileViewModel）：
+  - 新增 `ProfileViewModel` 单例（@ObservedV2 + @Trace，继承 BasePaginationViewModel），管理回答/文章列表分页加载
+  - `fetchUserAnswers`：`GET /api/v4/members/{urlToken}/answers?sort_by=voteups`
+  - `fetchUserArticles`：`GET /api/v4/members/{urlToken}/articles?sort_by=created`
+  - 改造 `ProfilePage`：新增回答/文章 Tabs（原生 Tabs 组件），支持触底加载（onReachEnd）和下拉刷新（Refresh）
+  - 空状态使用 EmptyView 组件
+  - 已登录用户信息卡片下方显示统计行（回答数/文章数/粉丝数/关注数，当前为占位符）
+
+- ✅ Slice 4 设置页增强（SettingsPage）：
+  - 主题模式切换：浅色/深色/跟随系统，使用 `getContext(this).getApplicationContext().setColorMode()` 切换
+  - 正文字号调节：Slider 50%~200%，实时预览效果
+  - 设置持久化到 Preferences（PreferencesUtil）
+
+- 构建验证：BUILD SUCCESSFUL（修复 16 个编译错误）
+
 ### 13.8 第 6 批：产品增强能力
 
 **时间：第 16–18 周**

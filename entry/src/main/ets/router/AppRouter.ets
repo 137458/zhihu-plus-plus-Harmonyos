@@ -6,26 +6,26 @@
  */
 
 /** 路由名常量，与 main_pages.json 中的 src 顺序保持一致 */
-export const RouteName: Record<string, string> = {
+export class RouteName {
   /** 主壳，承载 Navigation + NavPathStack 的入口页面 */
-  INDEX: 'Index',
+  static readonly INDEX: string = 'Index';
   /** 首页（推荐信息流） */
-  HOME: 'HomePage',
+  static readonly HOME: string = 'HomePage';
   /** 搜索页 */
-  SEARCH: 'SearchPage',
+  static readonly SEARCH: string = 'SearchPage';
   /** 问题详情页 */
-  QUESTION_DETAIL: 'QuestionDetailPage',
+  static readonly QUESTION_DETAIL: string = 'QuestionDetailPage';
   /** 回答详情页 */
-  ANSWER_DETAIL: 'AnswerDetailPage',
+  static readonly ANSWER_DETAIL: string = 'AnswerDetailPage';
   /** 文章详情页 */
-  ARTICLE_DETAIL: 'ArticleDetailPage',
+  static readonly ARTICLE_DETAIL: string = 'ArticleDetailPage';
   /** 登录页 */
-  LOGIN: 'LoginPage',
+  static readonly LOGIN: string = 'LoginPage';
   /** 个人主页 */
-  PROFILE: 'ProfilePage',
+  static readonly PROFILE: string = 'ProfilePage';
   /** 设置页 */
-  SETTINGS: 'SettingsPage'
-};
+  static readonly SETTINGS: string = 'SettingsPage';
+}
 
 /** 问题详情页参数 */
 export interface QuestionDetailParams {

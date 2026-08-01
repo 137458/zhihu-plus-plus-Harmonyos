@@ -176,7 +176,34 @@ export class NetworkClient {
   }
 
   /**
-   * 请求内部实现（GET/POST 公共逻辑）。
+   * 发起 PUT 请求
+   *
+   * @param options 请求选项（包含 body）
+   * @returns 响应对象
+   * @throws ApiError 网络错误、超时、HTTP 错误码
+   */
+  async put(options: PostRequestOptions): Promise<HttpResponse> {
+    const header: Record<string, string> = options.headers !== undefined ? options.headers : {};
+    const connectTimeout: number = options.connectTimeout !== undefined
+      ? options.connectTimeout
+      : DEFAULT_CONNECT_TIMEOUT;
+    const readTimeout: number = options.readTimeout !== undefined
+      ? options.readTimeout
+      : DEFAULT_READ_TIMEOUT;
+    return this.requestInternal(
+      http.RequestMethod.PUT,
+      options.url,
+      header,
+      connectTimeout,
+      readTimeout,
+      options.onSetCookie,
+      options.body,
+      options.rebuildHeaders
+    );
+  }
+
+  /**
+   * 请求内部实现（GET/POST/PUT 公共逻辑）。
    *
    * 统一处理：超时配置、Set-Cookie 回调、HTTP 状态码到 ApiError 转换、资源释放。
    *

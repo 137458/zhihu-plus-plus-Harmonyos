@@ -11,17 +11,28 @@
  * - 功能入口（关注/收藏/历史）：未登录时点击触发 onLoginClick；已登录暂为占位
  * - 设置入口：始终触发 onSettingsClick
  *
+ * 回答/文章 Tab 列表（Slice 3 新增）：
+ * - 登录后用户信息卡片下方显示 Tabs（回答/文章）
+ * - 每个 Tab 使用 List + FeedCardView 渲染
+ * - 触底加载（onReachEnd）和下拉刷新（Refresh）
+ * - 空状态使用 EmptyView
+ *
  * 回调注入：
  * - onLoginClick: 由 Index.ets 注入，push LoginPage
  * - onSettingsClick: 由 Index.ets 注入，push SettingsPage
+ * - onCardClick: 由 Index.ets 注入，用于跳转详情页（后续批次接入）
  *
  * 状态管理：
  * - @Local sessionViewModel: SessionViewModel（@ObservedV2 + @Trace 单例）
+ * - @Local profileVM: ProfileViewModel（@ObservedV2 + @Trace 单例）
  * - build 中读取 isLoggedIn/profile 建立依赖，登录态变化触发 build 重新执行
  */
 
 import { SessionViewModel } from '../viewmodel/SessionViewModel';
-import { ZhihuProfile } from '../model/ZhihuProfile';
+import { ProfileViewModel } from '../viewmodel/ProfileViewModel';
+import { FeedCard } from '../model/FeedCard';
+import { FeedCardView } from '../components/FeedCardView';
+import { EmptyView } from '../components/EmptyView';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN: number = 0x0000;
@@ -57,6 +68,12 @@ const LOGOUT_SECTION_TOP_MARGIN: number = 16;
 const LOGOUT_BUTTON_HEIGHT: number = 48;
 /** 退出登录按钮字体大小 */
 const LOGOUT_BUTTON_FONT_SIZE: number = 15;
+/** Tab 栏高度 */
+const TAB_BAR_HEIGHT: number = 44;
+/** Tab 内容区块上方间距 */
+const TAB_CONTENT_TOP_MARGIN: number = 12;
+/** 统计行高度 */
+const STATS_ROW_HEIGHT: number = 36;
 
 /** 单条功能入口配置 */
 interface ProfileEntryConfig {
@@ -97,71 +114,86 @@ export struct ProfilePage {
   @Param onSettingsClick: (() => void) | undefined = undefined;
   /** 退出登录回调（由 Index.ets 注入，调用 SessionViewModel.logout + WebCookie 清理 + NavPathStack 重置） */
   @Param onLogoutClick: (() => void) | undefined = undefined;
+  /** 卡片点击回调（由 Index.ets 注入，用于跳转详情页；后续批次接入） */
+  @Param onCardClick: ((card: FeedCard) => void) | undefined = undefined;
 
   /** 会话 ViewModel（@ObservedV2 + @Trace 单例） */
   @Local sessionViewModel: SessionViewModel = SessionViewModel.getInstance();
+  /** 个人页 ViewModel（@ObservedV2 + @Trace 单例） */
+  @Local profileVM: ProfileViewModel = ProfileViewModel.getInstance();
 
   /** 功能入口配置（静态） */
   @Local entries: ProfileEntryConfig[] = buildProfileEntries();
   /** 是否显示退出登录确认对话框 */
   @Local showLogoutDialog: boolean = false;
+  /** 当前选中的 Tab 索引 */
+  @Local currentTabIndex: number = 0;
+
+  aboutToAppear(): void {
+    if (this.sessionViewModel.isLoggedIn && this.sessionViewModel.profile !== null) {
+      const urlToken: string = this.sessionViewModel.profile.urlToken;
+      this.profileVM.loadAnswers(urlToken);
+      this.profileVM.loadArticles(urlToken);
+    }
+  }
 
   build() {
-    Scroll() {
+    Column() {
+      // 用户信息卡片：登录态优先，profile=null 时仍按已登录渲染
+      if (this.sessionViewModel.isLoggedIn) {
+        this.buildLoggedInUserCard();
+        this.buildStatsRow();
+        this.buildLogoutButton();
+      } else {
+        this.buildLoggedOutUserCard();
+      }
+
+      // 内容 Tab 列表（已登录时显示回答/文章切换）
+      if (this.sessionViewModel.isLoggedIn) {
+        this.buildContentTabs();
+      }
+
+      // 功能入口列表
       Column() {
-        // 用户信息卡片：登录态优先，profile=null 时仍按已登录渲染
-        if (this.sessionViewModel.isLoggedIn) {
-          this.buildLoggedInUserCard();
-          // 已登录状态：显示退出登录按钮
-          this.buildLogoutButton();
-        } else {
-          this.buildLoggedOutUserCard();
-        }
+        ForEach(this.entries, (item: ProfileEntryConfig) => {
+          Row() {
+            SymbolGlyph(item.icon)
+              .fontSize(ENTRY_ICON_SIZE)
+              .fontColor([$r('app.color.app_title_bar_on_surface')]);
 
-        // 功能入口列表
-        Column() {
-          ForEach(this.entries, (item: ProfileEntryConfig) => {
-            Row() {
-              SymbolGlyph(item.icon)
-                .fontSize(ENTRY_ICON_SIZE)
-                .fontColor([$r('app.color.app_title_bar_on_surface')]);
+            Text(item.title)
+              .fontSize(ENTRY_TITLE_FONT_SIZE)
+              .fontColor($r('app.color.app_title_bar_on_surface'))
+              .margin({ left: 12 })
+              .layoutWeight(1);
 
-              Text(item.title)
-                .fontSize(ENTRY_TITLE_FONT_SIZE)
-                .fontColor($r('app.color.app_title_bar_on_surface'))
-                .margin({ left: 12 })
-                .layoutWeight(1);
-
-              SymbolGlyph($r('sys.symbol.chevron_right'))
-                .fontSize(ENTRY_ARROW_SIZE)
-                .fontColor([$r('app.color.app_on_surface_secondary')]);
-            }
-            .width('100%')
-            .height(ENTRY_ITEM_HEIGHT)
-            .padding({ left: CARD_PADDING, right: CARD_PADDING })
-            .alignItems(VerticalAlign.Center)
-            .onClick(() => {
-              this.handleEntryClick(item.id);
-            });
-          }, (item: ProfileEntryConfig) => item.id);
-        }
-        .width('100%')
-        .margin({ top: ENTRIES_SECTION_TOP_MARGIN })
-        .backgroundColor($r('app.color.app_surface'))
-        .borderRadius(CARD_CORNER_RADIUS);
+            SymbolGlyph($r('sys.symbol.chevron_right'))
+              .fontSize(ENTRY_ARROW_SIZE)
+              .fontColor([$r('app.color.app_on_surface_secondary')]);
+          }
+          .width('100%')
+          .height(ENTRY_ITEM_HEIGHT)
+          .padding({ left: CARD_PADDING, right: CARD_PADDING })
+          .alignItems(VerticalAlign.Center)
+          .onClick(() => {
+            this.handleEntryClick(item.id);
+          });
+        }, (item: ProfileEntryConfig) => item.id);
       }
       .width('100%')
-      .padding({
-        left: $r('app.float.page_padding_horizontal'),
-        right: $r('app.float.page_padding_horizontal'),
-        top: $r('app.float.page_padding_vertical'),
-        bottom: $r('app.float.content_bottom_padding_tabbar')
-      })
-      .alignItems(HorizontalAlign.Center);
+      .margin({ top: ENTRIES_SECTION_TOP_MARGIN })
+      .backgroundColor($r('app.color.app_surface'))
+      .borderRadius(CARD_CORNER_RADIUS);
     }
     .width('100%')
     .height('100%')
-    .scrollBar(BarState.Off);
+    .padding({
+      left: $r('app.float.page_padding_horizontal'),
+      right: $r('app.float.page_padding_horizontal'),
+      top: $r('app.float.page_padding_vertical'),
+      bottom: $r('app.float.content_bottom_padding_tabbar')
+    })
+    .alignItems(HorizontalAlign.Center);
   }
 
   /**
@@ -230,6 +262,37 @@ export struct ProfilePage {
   }
 
   /**
+   * 统计信息行 Builder。
+   *
+   * 在已登录状态下，用户信息卡片下方显示统计行（回答数、文章数、粉丝数、关注数）。
+   * 当前 ZhihuProfile 模型暂无这些统计字段，显示占位符 "-"。
+   * 使用 Row 布局，水平均匀分布。
+   */
+  @Builder
+  buildStatsRow() {
+    Row() {
+      ForEach(this.buildStatsItems(), (stat: StatsItem) => {
+        Column() {
+          Text(stat.count)
+            .fontSize($r('app.float.card_title_font_size'))
+            .fontColor($r('app.color.app_title_bar_on_surface'))
+            .fontWeight(FontWeight.Medium);
+          Text(stat.label)
+            .fontSize($r('app.float.card_meta_font_size'))
+            .fontColor($r('app.color.app_on_surface_secondary'))
+            .margin({ top: 2 });
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Center);
+      }, (item: StatsItem) => item.id);
+    }
+    .width('100%')
+    .height(STATS_ROW_HEIGHT)
+    .padding({ left: CARD_PADDING, right: CARD_PADDING })
+    .margin({ top: 8 });
+  }
+
+  /**
    * 退出登录按钮 Builder。
    *
    * 仅登录态显示，位于用户信息卡片下方。
@@ -256,6 +319,123 @@ export struct ProfilePage {
     .margin({ top: LOGOUT_SECTION_TOP_MARGIN })
     .backgroundColor($r('app.color.app_surface'))
     .borderRadius(CARD_CORNER_RADIUS);
+  }
+
+  /**
+   * 内容 Tab 列表 Builder。
+   *
+   * 使用原生 Tabs 组件，两个 Tab：回答和文章。
+   * 每个 Tab 内容是一个 List 渲染的 FeedCardView 列表。
+   * 支持触底加载（onReachEnd）和下拉刷新（Refresh）。
+   * 空状态时显示 EmptyView。
+   */
+  @Builder
+  buildContentTabs() {
+    Column() {
+      Tabs({ index: this.currentTabIndex }) {
+        TabContent() {
+          if (this.profileVM.answerItems.length > 0) {
+            Refresh({ refreshing: this.profileVM.isRefreshing }) {
+              List({ space: 8 }) {
+                ForEach(this.profileVM.answerItems, (item: FeedCard) => {
+                  ListItem() {
+                    FeedCardView({
+                      card: item,
+                      onCardClick: (card: FeedCard) => {
+                        this.handleCardClick(card);
+                      }
+                    });
+                  }
+                }, (item: FeedCard) => item.stableKey);
+              }
+              .width('100%')
+              .height('100%')
+              .onReachEnd(() => {
+                this.loadMoreAnswers();
+              });
+            }
+            .width('100%')
+            .height('100%')
+            .onRefreshing(() => {
+              this.pullToRefresh();
+            });
+          } else {
+            EmptyView({
+              title: $r('app.string.profile_no_answers'),
+              subtitle: $r('app.string.state_empty_subtitle')
+            });
+          }
+        }
+        .tabBar(this.buildTabBarBuilder($r('app.string.profile_tab_answers')));
+
+        TabContent() {
+          if (this.profileVM.articleItems.length > 0) {
+            Refresh({ refreshing: this.profileVM.isRefreshing }) {
+              List({ space: 8 }) {
+                ForEach(this.profileVM.articleItems, (item: FeedCard) => {
+                  ListItem() {
+                    FeedCardView({
+                      card: item,
+                      onCardClick: (card: FeedCard) => {
+                        this.handleCardClick(card);
+                      }
+                    });
+                  }
+                }, (item: FeedCard) => item.stableKey);
+              }
+              .width('100%')
+              .height('100%')
+              .onReachEnd(() => {
+                this.loadMoreArticles();
+              });
+            }
+            .width('100%')
+            .height('100%')
+            .onRefreshing(() => {
+              this.pullToRefresh();
+            });
+          } else {
+            EmptyView({
+              title: $r('app.string.profile_no_articles'),
+              subtitle: $r('app.string.state_empty_subtitle')
+            });
+          }
+        }
+        .tabBar(this.buildTabBarBuilder($r('app.string.profile_tab_articles')));
+      }
+      .width('100%')
+      .height('100%')
+      .barMode(BarMode.Fixed)
+      .animationDuration(0)
+      .onChange((index: number) => {
+        this.currentTabIndex = index;
+        this.onTabChange(index);
+      });
+    }
+    .width('100%')
+    .height('100%')
+    .margin({ top: TAB_CONTENT_TOP_MARGIN })
+    .layoutWeight(1);
+  }
+
+  /**
+   * 构建 TabBar 内容。
+   *
+   * @param text 标签文字资源
+   * @returns 自定义 TabBar 组件
+   */
+  @Builder
+  buildTabBarBuilder(text: Resource) {
+    Column() {
+      Text(text)
+        .fontSize($r('app.float.card_title_font_size'))
+        .fontColor($r('app.color.app_title_bar_on_surface'))
+        .fontWeight(FontWeight.Medium);
+    }
+    .width('100%')
+    .height(TAB_BAR_HEIGHT)
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center);
   }
 
   /**
@@ -369,4 +549,93 @@ export struct ProfilePage {
     }
     // 已登录但目标页未实现，暂不处理
   }
+
+  /**
+   * 处理卡片点击，调用 onCardClick 回调。
+   *
+   * @param card 被点击的 FeedCard
+   */
+  private handleCardClick(card: FeedCard): void {
+    const cb = this.onCardClick;
+    if (cb !== undefined) {
+      cb(card);
+    }
+  }
+
+  /**
+   * Tab 切换回调。
+   *
+   * 切换 Tab 时，如果对应列表为空，触发加载。
+   *
+   * @param index 新的 Tab 索引
+   */
+  private onTabChange(index: number): void {
+    if (!this.sessionViewModel.isLoggedIn || this.sessionViewModel.profile === null) {
+      return;
+    }
+    const urlToken: string = this.sessionViewModel.profile.urlToken;
+    if (index === 0 && this.profileVM.answerItems.length === 0) {
+      this.profileVM.loadAnswers(urlToken);
+    } else if (index === 1 && this.profileVM.articleItems.length === 0) {
+      this.profileVM.loadArticles(urlToken);
+    }
+  }
+
+  /**
+   * 加载更多回答（触底加载）。
+   */
+  private loadMoreAnswers(): void {
+    if (!this.sessionViewModel.isLoggedIn || this.sessionViewModel.profile === null) {
+      return;
+    }
+    const urlToken: string = this.sessionViewModel.profile.urlToken;
+    this.profileVM.loadAnswers(urlToken);
+  }
+
+  /**
+   * 加载更多文章（触底加载）。
+   */
+  private loadMoreArticles(): void {
+    if (!this.sessionViewModel.isLoggedIn || this.sessionViewModel.profile === null) {
+      return;
+    }
+    const urlToken: string = this.sessionViewModel.profile.urlToken;
+    this.profileVM.loadArticles(urlToken);
+  }
+
+  /**
+   * 下拉刷新所有列表。
+   */
+  private pullToRefresh(): void {
+    if (!this.sessionViewModel.isLoggedIn || this.sessionViewModel.profile === null) {
+      return;
+    }
+    const urlToken: string = this.sessionViewModel.profile.urlToken;
+    this.profileVM.refresh(urlToken);
+  }
+
+  /**
+   * 构建统计行条目。
+   *
+   * @returns 统计条目列表
+   */
+  private buildStatsItems(): StatsItem[] {
+    const items: StatsItem[] = [
+      { id: 'stats_answers', label: $r('app.string.profile_answer_count'), count: '-' },
+      { id: 'stats_articles', label: $r('app.string.profile_article_count'), count: '-' },
+      { id: 'stats_followers', label: $r('app.string.profile_follower_count'), count: '-' },
+      { id: 'stats_following', label: $r('app.string.profile_following_count'), count: '-' }
+    ];
+    return items;
+  }
+}
+
+/** 统计条目 */
+interface StatsItem {
+  /** 唯一标识 */
+  id: string;
+  /** 标签文字资源 */
+  label: Resource;
+  /** 统计数值（占位符） */
+  count: string;
 }

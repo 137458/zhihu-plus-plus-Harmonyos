@@ -15,7 +15,7 @@
  * 运行时类型安全由 Array.isArray + 逐字段 typeof 保证。
  */
 
-import { NetworkClient, HttpResponse, GetRequestOptions } from './NetworkClient';
+import { NetworkClient, HttpResponse, GetRequestOptions, PostRequestOptions } from './NetworkClient';
 import { CookieJar } from './CookieJar';
 import { createZse96Header } from './ZseSigner';
 import { FeedCard } from '../model/FeedCard';
@@ -96,6 +96,17 @@ const ANSWER_DETAIL_INCLUDE: string = '.settings,content,editable_content,paid_i
 const ARTICLE_DETAIL_INCLUDE: string = 'content,topics,paid_info,can_comment,excerpt,thanks_count,voteup_count,comment_count,visited_count,relationship,ip_info,relationship.vote,author.badge_v2';
 /** 详情接口使用的 Web 端 User-Agent（来自 PRD 第 3 批 Slice 1） */
 const ZHIHU_WEB_UA: string = 'Mozilla/5.0 (X11; U; Linux x86_64; en-US) AppleWebKit/540.0 (KHTML, like Gecko) Ubuntu/10.10 Chrome/9.1.0.0 Safari/540.0';
+
+/** 收藏 API 基础 URL */
+const ZHIHU_API_COLLECTIONS: string = 'https://api.zhihu.com/collections';
+/** 收藏操作路径模板 */
+const COLLECTIONS_CONTENTS_PATH: string = '/contents';
+/** 用户 API 基础 URL */
+const API_PEOPLE_BASE: string = 'https://api.zhihu.com/people';
+/** 成员 API 基础 URL（www 子域） */
+const WWW_MEMBERS_BASE: string = 'https://www.zhihu.com/api/v4/members';
+/** 评论 v5 API 基础 URL */
+const COMMENT_V5_BASE: string = 'https://www.zhihu.com/api/v4/comment_v5';
 
 export class ZhihuApi {
   private client: NetworkClient;
@@ -805,6 +816,457 @@ export class ZhihuApi {
 
     hilog.info(DOMAIN, TAG, 'parseArticleDetailResponse: id=%{public}s', detail.id);
     return detail;
+  }
+
+  // ──── 点赞/取消点赞（Slice 1） ────
+
+  /**
+   * 回答点赞/取消点赞。
+   *
+   * 调用 POST https://www.zhihu.com/api/v4/answers/{answerId}/voters，
+   * body {"type":"up"}（点赞）或 {"type":"neutral"}（取消点赞）。
+   * 走 x-zse-93/96 签名。
+   *
+   * @param answerId 回答 ID
+   * @param type 'up' 或 'neutral'
+   * @returns 响应中的 voteup_count
+   * @throws ApiError 网络错误、401（未登录）、风控等
+   */
+  async voteAnswer(answerId: string, type: string): Promise<number> {
+    const url: string = ZHIHU_WWW_BASE + ANSWER_DETAIL_PATH + '/' + answerId + '/voters';
+    const body: string = JSON.stringify({ type: type });
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value, body);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: PostRequestOptions = {
+      url: url,
+      headers: headers,
+      body: body,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'voteAnswer: answerId=%{public}s type=%{public}s', answerId, type);
+    const res: HttpResponse = await this.client.post(options);
+    return this.parseVoteResponse(res.body);
+  }
+
+  /**
+   * 文章点赞/取消点赞。
+   *
+   * 调用 POST https://www.zhihu.com/api/v4/articles/{articleId}/voters，
+   * body {"voting":1}（点赞）或 {"voting":0}（取消点赞）。
+   * 走 x-zse-93/96 签名。
+   *
+   * @param articleId 文章 ID
+   * @param voting 1 或 0
+   * @returns 响应中的 voteup_count
+   * @throws ApiError 网络错误、401（未登录）、风控等
+   */
+  async voteArticle(articleId: string, voting: number): Promise<number> {
+    const url: string = ZHIHU_WWW_BASE + ARTICLE_DETAIL_PATH + '/' + articleId + '/voters';
+    const body: string = JSON.stringify({ voting: voting });
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value, body);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: PostRequestOptions = {
+      url: url,
+      headers: headers,
+      body: body,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'voteArticle: articleId=%{public}s voting=%{public}d', articleId, voting);
+    const res: HttpResponse = await this.client.post(options);
+    return this.parseVoteResponse(res.body);
+  }
+
+  /**
+   * 解析点赞响应。
+   *
+   * 从 JSON 响应中提取 voteup_count 字段。
+   */
+  private parseVoteResponse(body: string): number {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty vote response body');
+    }
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('vote response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+    const rawObj: Record<string, object> = raw as Record<string, object>;
+    const voteupCountValue: object = rawObj['voteup_count'];
+    let voteupCount: number | undefined = undefined;
+    if (typeof voteupCountValue === 'number') {
+      voteupCount = voteupCountValue;
+    }
+    if (typeof voteupCount === 'number') {
+      return voteupCount;
+    }
+    // 即使没有 voteup_count 也不视为错误（某些场景可能不返回该字段）
+    return 0;
+  }
+
+  // ──── 收藏/取消收藏（Slice 2） ────
+
+  /**
+   * 收藏内容。
+   *
+   * 调用 PUT https://api.zhihu.com/collections/contents/{contentType}/{contentId}，
+   * body form-urlencoded: add_collections={collectionId}。
+   * 不走 zse 签名，仅依赖 Cookie。
+   *
+   * @param contentType 'answer' 或 'article'
+   * @param contentId 内容 ID
+   * @param collectionId 收藏夹 ID
+   * @throws ApiError 网络错误、401（未登录）等
+   */
+  async addToCollection(contentType: string, contentId: string, collectionId: string): Promise<void> {
+    const url: string = ZHIHU_API_COLLECTIONS + COLLECTIONS_CONTENTS_PATH + '/' + contentType + '/' + contentId;
+    const body: string = 'add_collections=' + collectionId;
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: PostRequestOptions = {
+      url: url,
+      headers: headers,
+      body: body,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'addToCollection: contentType=%{public}s contentId=%{public}s', contentType, contentId);
+    await this.client.put(options);
+  }
+
+  /**
+   * 取消收藏内容。
+   *
+   * 调用 PUT https://api.zhihu.com/collections/contents/{contentType}/{contentId}，
+   * body form-urlencoded: remove_collections={collectionId}。
+   *
+   * @param contentType 'answer' 或 'article'
+   * @param contentId 内容 ID
+   * @param collectionId 收藏夹 ID
+   * @throws ApiError 网络错误、401（未登录）等
+   */
+  async removeFromCollection(contentType: string, contentId: string, collectionId: string): Promise<void> {
+    const url: string = ZHIHU_API_COLLECTIONS + COLLECTIONS_CONTENTS_PATH + '/' + contentType + '/' + contentId;
+    const body: string = 'remove_collections=' + collectionId;
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: PostRequestOptions = {
+      url: url,
+      headers: headers,
+      body: body,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'removeFromCollection: contentType=%{public}s contentId=%{public}s', contentType, contentId);
+    await this.client.put(options);
+  }
+
+  // ──── 个人页相关（Slice 3） ────
+
+  /**
+   * 获取用户资料。
+   *
+   * 调用 GET https://api.zhihu.com/people/{identifier}，
+   * 匿名可访问公开字段（需 d_c0 签名）。
+   *
+   * @param identifier 用户标识（urlToken 或 id）
+   * @returns 原始 JSON 响应对象
+   * @throws ApiError 网络错误、风控、解析失败
+   */
+  async fetchProfile(identifier: string): Promise<object> {
+    const url: string = API_PEOPLE_BASE + '/' + identifier;
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchProfile: identifier=%{public}s', identifier);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseRawJsonResponse(res.body);
+  }
+
+  /**
+   * 获取用户回答列表。
+   *
+   * 调用 GET /api/v4/members/{urlToken}/answers?sort_by=voteups。
+   *
+   * @param urlToken 用户 urlToken
+   * @param pagingNext 下一页 URL（可选）
+   * @returns FeedCard 列表和分页信息
+   * @throws ApiError 网络错误、风控等
+   */
+  async fetchUserAnswers(urlToken: string, pagingNext?: string): Promise<FeedListResult> {
+    const url: string = pagingNext !== undefined && pagingNext.length > 0
+      ? pagingNext
+      : WWW_MEMBERS_BASE + '/' + urlToken + '/answers?sort_by=voteups&limit=20';
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchUserAnswers: urlToken=%{public}s', urlToken);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseGenericFeedListResponse(res.body);
+  }
+
+  /**
+   * 获取用户文章列表。
+   *
+   * 调用 GET /api/v4/members/{urlToken}/articles?sort_by=created。
+   *
+   * @param urlToken 用户 urlToken
+   * @param pagingNext 下一页 URL（可选）
+   * @returns FeedCard 列表和分页信息
+   * @throws ApiError 网络错误、风控等
+   */
+  async fetchUserArticles(urlToken: string, pagingNext?: string): Promise<FeedListResult> {
+    const url: string = pagingNext !== undefined && pagingNext.length > 0
+      ? pagingNext
+      : WWW_MEMBERS_BASE + '/' + urlToken + '/articles?sort_by=created&limit=20';
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchUserArticles: urlToken=%{public}s', urlToken);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseGenericFeedListResponse(res.body);
+  }
+
+  // ──── 评论列表（Slice 5） ────
+
+  /**
+   * 获取根评论列表。
+   *
+   * 调用 GET /api/v4/comment_v5/{contentType}s/{contentId}/root_comment?order_by=score。
+   *
+   * @param contentType 内容类型（answers / articles）
+   * @param contentId 内容 ID
+   * @param offset 分页偏移（可选）
+   * @returns 原始 JSON 响应对象
+   * @throws ApiError 网络错误、风控等
+   */
+  async fetchRootComments(contentType: string, contentId: string, offset?: number): Promise<object> {
+    let url: string = COMMENT_V5_BASE + '/' + contentType + 's/' + contentId + '/root_comment?order_by=score&limit=20';
+    if (offset !== undefined && offset > 0) {
+      url = url + '&offset=' + offset.toString();
+    }
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchRootComments: contentType=%{public}s contentId=%{public}s offset=%{public}d',
+      contentType, contentId, offset !== undefined ? offset : 0);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseRawJsonResponse(res.body);
+  }
+
+  // ──── 通用解析方法 ────
+
+  /**
+   * 解析原始 JSON 响应。
+   *
+   * 风控判定：
+   * - 响应体为空 → PARSE_ERROR
+   * - JSON 解析失败 → PARSE_ERROR
+   *
+   * @returns 解析后的 object
+   */
+  private parseRawJsonResponse(body: string): object {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty response body');
+    }
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+    return raw;
+  }
+
+  /**
+   * 通用 FeedList 响应解析。
+   *
+   * 风控判定：
+   * - 响应体为空 → PARSE_ERROR
+   * - JSON 解析失败 → PARSE_ERROR
+   * - 响应缺 $.data 字段或非数组 → RISK_CONTROL
+   *
+   * 解析规则同 parseHomeRecommendResponse。
+   */
+  private parseGenericFeedListResponse(body: string): FeedListResult {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty response body');
+    }
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+    const root: RawFeedResponse = raw as RawFeedResponse;
+    const data: object[] | undefined = root.data;
+    if (data === undefined || !Array.isArray(data)) {
+      throw ApiError.riskControl('response missing $.data (likely risk control)');
+    }
+    const items: FeedCard[] = [];
+    for (let i = 0; i < data.length; i++) {
+      const card: FeedCard | null = FeedCard.fromObject(data[i]);
+      if (card !== null) {
+        items.push(card);
+      }
+    }
+    let paging: Paging | null = null;
+    const rawPaging: object | undefined = root.paging;
+    if (rawPaging !== undefined) {
+      paging = parsePaging(rawPaging);
+    }
+    hilog.info(DOMAIN, TAG, 'parseGenericFeedListResponse: items=%{public}d', items.length);
+    const result: FeedListResult = {
+      items: items,
+      paging: paging
+    };
+    return result;
   }
 }
 
