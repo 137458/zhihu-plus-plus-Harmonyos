@@ -20,6 +20,7 @@
 
 import { webview } from '@kit.ArkWeb';
 import { ConfigurationConstant } from '@kit.AbilityKit';
+import { extractHostFromUrl } from '../utils/UrlHostUtil';
 
 /** 可信主机白名单（知乎 CDN 和公式图） */
 const TRUSTED_HOSTS: string[] = [
@@ -257,8 +258,8 @@ ${BASE_CSS}`;
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       return true;
     }
-    // 解析主机名
-    const host: string | null = this.extractHost(url);
+    // 解析主机名（含 userinfo 剥离，防止白名单绕过）
+    const host: string | null = extractHostFromUrl(url);
     if (host === null) {
       return true;
     }
@@ -272,33 +273,6 @@ ${BASE_CSS}`;
       cb(url);
     }
     return true;
-  }
-
-  /**
-   * 从 URL 中提取主机名。
-   *
-   * 简化实现：不支持 IPv6 和复杂 URL，仅处理常见的 https://host/path 格式。
-   */
-  private extractHost(url: string): string | null {
-    let rest: string = url;
-    if (rest.startsWith('https://')) {
-      rest = rest.substring('https://'.length);
-    } else if (rest.startsWith('http://')) {
-      rest = rest.substring('http://'.length);
-    } else {
-      return null;
-    }
-    // 去除 path 部分
-    const slashIdx: number = rest.indexOf('/');
-    if (slashIdx >= 0) {
-      rest = rest.substring(0, slashIdx);
-    }
-    // 去除 port
-    const colonIdx: number = rest.indexOf(':');
-    if (colonIdx >= 0) {
-      rest = rest.substring(0, colonIdx);
-    }
-    return rest.length > 0 ? rest : null;
   }
 
   /**
