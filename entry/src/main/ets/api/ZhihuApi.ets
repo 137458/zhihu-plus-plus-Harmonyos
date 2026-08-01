@@ -26,6 +26,7 @@ import { ApiError } from '../model/ApiError';
 import { QuestionDetail } from '../model/QuestionDetail';
 import { AnswerDetail } from '../model/AnswerDetail';
 import { ArticleDetail } from '../model/ArticleDetail';
+import { Collection, collectionListFromArray } from '../model/Collection';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN: number = 0x0000;
@@ -1021,6 +1022,137 @@ export class ZhihuApi {
     await this.client.put(options);
   }
 
+  /**
+   * 获取用户收藏夹列表。
+   *
+   * 调用 GET /api/v4/people/{urlToken}/collections，
+   * 走 zse 签名，需登录 Cookie。
+   *
+   * @param urlToken 用户 urlToken
+   * @param pagingNext 下一页 URL（可选）
+   * @returns 收藏夹列表和分页信息
+   * @throws ApiError 网络错误、风控等
+   */
+  async fetchUserCollections(urlToken: string, pagingNext?: string): Promise<CollectionsResult> {
+    const url: string = pagingNext !== undefined && pagingNext.length > 0
+      ? pagingNext
+      : API_PEOPLE_BASE + '/' + urlToken + '/collections?limit=20';
+    const dc0: string | undefined = this.cookieJar.getDc0();
+    const dc0Value: string = dc0 !== undefined ? dc0 : '';
+    const zse96: string = createZse96Header(ZSE93_VERSION, url, dc0Value);
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'x-zse-96': zse96,
+      'x-zse-93': ZSE93_VERSION,
+      'User-Agent': ZHIHU_WEB_UA,
+      'x-requested-with': 'fetch',
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      rebuildHeaders: this.makeRebuildHeaders(url, headers),
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchUserCollections: urlToken=%{public}s', urlToken);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseCollectionsResponse(res.body);
+  }
+
+  /**
+   * 获取内容所在收藏夹列表。
+   *
+   * 调用 GET https://api.zhihu.com/collections/contents/{contentType}/{id}?limit=50，
+   * 不走 zse 签名，仅依赖 Cookie。
+   *
+   * @param contentType 内容类型（'answer' 或 'article'）
+   * @param contentId 内容 ID
+   * @returns 包含此内容的收藏夹列表
+   * @throws ApiError 网络错误等
+   */
+  async fetchContentCollections(contentType: string, contentId: string): Promise<Collection[]> {
+    const url: string = ZHIHU_API_COLLECTIONS + COLLECTIONS_CONTENTS_PATH + '/' + contentType + '/' + contentId
+      + '?limit=50';
+    const cookieHeader: string = this.cookieJar.buildCookieHeader();
+
+    const headers: Record<string, string> = {
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (cookieHeader.length > 0) {
+      headers['Cookie'] = cookieHeader;
+    }
+
+    const options: GetRequestOptions = {
+      url: url,
+      headers: headers,
+      onSetCookie: (setCookie: string) => {
+        this.cookieJar.updateFromSetCookie(setCookie);
+      }
+    };
+
+    hilog.info(DOMAIN, TAG, 'fetchContentCollections: contentType=%{public}s contentId=%{public}s',
+      contentType, contentId);
+    const res: HttpResponse = await this.client.get(options);
+    return this.parseCollectionsData(res.body);
+  }
+
+  /**
+   * 解析收藏夹列表响应（含 paging）。
+   */
+  private parseCollectionsResponse(body: string): CollectionsResult {
+    if (body === null || body.length === 0) {
+      throw ApiError.parseError('empty collections response body');
+    }
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('collections response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+    const root: RawCollectionsResponse = raw as RawCollectionsResponse;
+    const data: object[] | undefined = root.data;
+    if (data === undefined || !Array.isArray(data)) {
+      throw ApiError.riskControl('collections response missing $.data (likely risk control)');
+    }
+    const items: Collection[] = collectionListFromArray(data);
+    let paging: Paging | null = null;
+    const rawPaging: object | undefined = root.paging;
+    if (rawPaging !== undefined) {
+      paging = parsePaging(rawPaging);
+    }
+    hilog.info(DOMAIN, TAG, 'parseCollectionsResponse: items=%{public}d', items.length);
+    return { items: items, paging: paging };
+  }
+
+  /**
+   * 解析内容所在收藏夹列表响应（仅 data 数组，无 paging 或 paging 不重要）。
+   */
+  private parseCollectionsData(body: string): Collection[] {
+    if (body === null || body.length === 0) {
+      return [];
+    }
+    let raw: object;
+    try {
+      raw = JSON.parse(body);
+    } catch (e) {
+      throw ApiError.parseError('content collections response is not valid JSON', e instanceof Error ? e : undefined);
+    }
+    const root: RawCollectionsResponse = raw as RawCollectionsResponse;
+    const data: object[] | undefined = root.data;
+    if (data === undefined || !Array.isArray(data)) {
+      return [];
+    }
+    return collectionListFromArray(data);
+  }
+
   // ──── 个人页相关（Slice 3） ────
 
   /**
@@ -1293,7 +1425,21 @@ interface RawHotSearchResponse {
   data?: object;
 }
 
+/** 收藏夹列表结果 */
+export interface CollectionsResult {
+  /** 收藏夹列表 */
+  items: Collection[];
+  /** 分页信息；null 表示无分页 */
+  paging: Paging | null;
+}
+
 /** 知乎热搜 API 的 $.data 对象形状（snake_case，内部使用） */
 interface RawHotSearchData {
   hot?: object[];
+}
+
+/** 知乎收藏夹列表/内容收藏夹 API 原始响应形状（snake_case，内部使用） */
+interface RawCollectionsResponse {
+  data?: object[];
+  paging?: object;
 }

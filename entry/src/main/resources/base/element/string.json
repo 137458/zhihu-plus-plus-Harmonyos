@@ -89,6 +89,20 @@
     { "name": "settings_font_size_title", "value": "正文字号" },
     { "name": "settings_font_size_description", "value": "调整内容文字大小" },
     { "name": "settings_font_size_small", "value": "小" },
-    { "name": "settings_font_size_large", "value": "大" }
+    { "name": "settings_font_size_large", "value": "大" },
+
+    { "name": "collection_button_title", "value": "收藏" },
+    { "name": "collection_dialog_title", "value": "收藏到" },
+    { "name": "collection_dialog_confirm", "value": "确定" },
+    { "name": "collection_dialog_cancel", "value": "取消" },
+    { "name": "collection_empty_title", "value": "暂无收藏夹" },
+    { "name": "collection_empty_hint", "value": "请先在知乎网页版创建收藏夹" },
+    { "name": "collection_success", "value": "已收藏" },
+    { "name": "collection_removed", "value": "已取消收藏" },
+    { "name": "collection_failed", "value": "收藏操作失败" },
+    { "name": "collection_login_hint", "value": "请先登录" },
+    { "name": "collection_public", "value": "公开" },
+    { "name": "collection_private", "value": "私密" },
+    { "name": "collection_item_count", "value": "条内容" }
   ]
 }

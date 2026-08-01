@@ -28,6 +28,8 @@ import { ArticleWebContainer } from '../web/ArticleWebContainer';
 import { StateView, ViewState } from '../components/StateView';
 import { VotersViewModel, VoteContentType } from '../viewmodel/VotersViewModel';
 import { VoteState } from '../model/VoteState';
+import { CollectionsViewModel, CollectionContentType } from '../viewmodel/CollectionsViewModel';
+import { CollectionPickerDialog } from '../components/CollectionPickerDialog';
 import { SessionViewModel } from '../viewmodel/SessionViewModel';
 import { ToastUtil } from '../utils/ToastUtil';
 
@@ -46,6 +48,10 @@ export struct AnswerDetailPage {
   @Local initialized: boolean = false;
   /** 点赞 ViewModel */
   private votersVM: VotersViewModel = VotersViewModel.getInstance();
+  /** 收藏 ViewModel */
+  private collectionsVM: CollectionsViewModel = CollectionsViewModel.getInstance();
+  /** 收藏夹选择器是否显示 */
+  @Local showCollectionDialog: boolean = false;
   /** 会话 ViewModel */
   private sessionVM: SessionViewModel = SessionViewModel.getInstance();
 
@@ -60,11 +66,19 @@ export struct AnswerDetailPage {
     }
   }
 
-  /** 监听 ViewModel 变化，在 detail 加载完成后初始化点赞状态 */
+  /** 监听 ViewModel 变化，在 detail 加载完成后初始化点赞状态并加载收藏状态 */
   @Monitor('viewModel')
   onViewModelChange(): void {
     if (this.viewModel !== null && this.viewModel.detail !== null) {
       this.votersVM.initContent(this.viewModel.detail.id, VoteState.NEUTRAL, this.viewModel.detail.voteupCount);
+      // 加载收藏状态（仅登录用户）
+      if (this.sessionVM.isLoggedIn) {
+        const urlToken: string = this.sessionVM.profile?.urlToken ?? '';
+        if (urlToken.length > 0) {
+          this.collectionsVM.loadCollections(urlToken);
+        }
+        this.collectionsVM.loadContentCollections('answer', this.viewModel.detail.id);
+      }
     }
   }
 
@@ -90,6 +104,21 @@ export struct AnswerDetailPage {
       } else {
         // ViewModel 未初始化（answerId 为空）
         StateView({ status: ViewState.ERROR, errorMessage: '回答 ID 为空' });
+      }
+
+      // 收藏夹选择器对话框
+      if (this.showCollectionDialog) {
+        CollectionPickerDialog({
+          options: {
+            show: this.showCollectionDialog,
+            onClose: () => {
+              this.showCollectionDialog = false;
+            },
+            onConfirm: (selectedIds: string[]) => {
+              this.handleCollectionConfirm(selectedIds);
+            }
+          }
+        });
       }
     }
     .titleBar({
@@ -198,6 +227,23 @@ export struct AnswerDetailPage {
         .onClick(() => {
           this.handleVoteClick(detail.id);
         });
+        // 收藏按钮
+        Row() {
+          SymbolGlyph($r('sys.symbol.bookmark'))
+            .fontSize(16)
+            .fontColor([this.collectionButtonColor()]);
+          Text(this.collectionButtonText())
+            .fontSize(13)
+            .fontColor(this.collectionButtonColor())
+            .margin({ left: 4 });
+        }
+        .margin({ left: 8 })
+        .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+        .borderRadius(16)
+        .backgroundColor(this.collectionButtonBgColor())
+        .onClick(() => {
+          this.handleCollectionClick(detail.id);
+        });
         // 评论数
         Row() {
           SymbolGlyph($r('sys.symbol.doc_text'))
@@ -296,5 +342,104 @@ export struct AnswerDetailPage {
       return;
     }
     this.votersVM.toggleVoteUp(contentId, VoteContentType.ANSWER);
+  }
+
+  // ──── 收藏相关方法 ────
+
+  /**
+   * 获取收藏按钮颜色：内容已收藏为蓝色，否则为次级文字色。
+   */
+  private collectionButtonColor(): ResourceColor {
+    if (this.collectionsVM.isContentCollected()) {
+      return $r('app.color.app_title_bar_background');
+    }
+    return $r('app.color.app_on_surface_secondary');
+  }
+
+  /**
+   * 获取收藏按钮文字。
+   */
+  private collectionButtonText(): string {
+    return '收藏';
+  }
+
+  /**
+   * 获取收藏按钮背景色：内容已收藏为蓝色，否则透明。
+   */
+  private collectionButtonBgColor(): ResourceColor {
+    if (this.collectionsVM.isContentCollected()) {
+      return $r('app.color.app_title_bar_background');
+    }
+    return Color.Transparent;
+  }
+
+  /**
+   * 处理收藏按钮点击。
+   *
+   * 未登录时提示跳转；已登录时加载收藏夹列表并弹出选择器。
+   */
+  private handleCollectionClick(contentId: string): void {
+    if (!this.sessionVM.isLoggedIn) {
+      ToastUtil.show('请先登录');
+      return;
+    }
+    // 加载收藏夹列表（如果尚未加载）
+    const urlToken: string = this.sessionVM.profile?.urlToken ?? '';
+    if (urlToken.length > 0) {
+      this.collectionsVM.loadCollections(urlToken);
+    }
+    this.showCollectionDialog = true;
+  }
+
+  /**
+   * 处理收藏夹选择器确认。
+   *
+   * 计算需要添加和移除的收藏夹，逐个执行操作。
+   */
+  private async handleCollectionConfirm(selectedIds: string[]): Promise<void> {
+    const prevIds: string[] = this.collectionsVM.contentCollectionIds;
+    // 计算需要添加的（在 selectedIds 但不在 prevIds）
+    const toAdd: string[] = [];
+    for (let i = 0; i < selectedIds.length; i++) {
+      let found: boolean = false;
+      for (let j = 0; j < prevIds.length; j++) {
+        if (selectedIds[i] === prevIds[j]) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        toAdd.push(selectedIds[i]);
+      }
+    }
+    // 计算需要移除的（在 prevIds 但不在 selectedIds）
+    const toRemove: string[] = [];
+    for (let i = 0; i < prevIds.length; i++) {
+      let found: boolean = false;
+      for (let j = 0; j < selectedIds.length; j++) {
+        if (prevIds[i] === selectedIds[j]) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        toRemove.push(prevIds[i]);
+      }
+    }
+
+    // 关闭对话框
+    this.showCollectionDialog = false;
+
+    // 逐个执行操作（toggleCollection 内部处理乐观更新和回滚）
+    const contentType: string = 'answer';
+    const contentId: string = this.answerId;
+
+    // 先添加收藏，再移除收藏
+    for (let i = 0; i < toAdd.length; i++) {
+      await this.collectionsVM.toggleCollection(contentType, contentId, toAdd[i]);
+    }
+    for (let i = 0; i < toRemove.length; i++) {
+      await this.collectionsVM.toggleCollection(contentType, contentId, toRemove[i]);
+    }
   }
 }

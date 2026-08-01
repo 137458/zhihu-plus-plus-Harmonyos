@@ -703,6 +703,27 @@ HarmonyApp/
 
 - 构建验证：BUILD SUCCESSFUL（修复 16 个编译错误）
 
+**实际实现（第 5 批 Slice 2，2026-08-01 交付）：**
+
+- ✅ Slice 2 收藏/取消收藏（CollectionsViewModel）：
+  - 新增 `Collection` 模型（interface，含 id/title/isPublic/isDefault/itemCount/isFavorited 等字段）
+  - 新增 `CollectionContentType` 枚举（ANSWER/article）
+  - 新增 `CollectionsViewModel` 单例（@ObservedV2 + @Trace），管理用户收藏夹列表和内容收藏状态
+  - 加载用户收藏夹列表：`GET /api/v4/people/{urlToken}/collections?limit=20`，走 x-zse-93/96 签名
+  - 加载内容被哪些收藏夹收录：`GET /api.zhihu.com/collections/contents/{contentType}/{id}?limit=50`，仅依赖 Cookie
+  - 收藏：`PUT /api.zhihu.com/collections/contents/{contentType}/{id}`，body form-urlencoded `add_collections={id}`，仅依赖 Cookie
+  - 取消收藏：`PUT /api.zhihu.com/collections/contents/{contentType}/{id}`，body form-urlencoded `remove_collections={id}`，仅依赖 Cookie
+  - 乐观更新 + 失败回滚：contentCollectionIds 先更新，API 失败后恢复快照
+  - 防重复操作：isOperating 标志阻止并发操作
+  - 新增 `CollectionPickerDialog` 组件：底部弹出面板，展示收藏夹列表，每项带复选框，支持勾选/取消勾选
+  - 集成到 `AnswerDetailPage` 和 `ArticleDetailPage` 底部统计栏（收藏按钮）
+  - 收藏按钮 UI 状态跟随内容是否已收藏：蓝色（已收藏）/ 灰色（未收藏）
+  - 未登录时 Toast 提示"请先登录"
+  - 新增 `fetchUserCollections` 和 `fetchContentCollections` API 方法
+  - 新增 `CollectionsResult` 接口和 `collectionListFromArray`/`collectionFromObject` 解析函数
+  - 新增字符串资源：13 个收藏相关字符串
+  - 构建验证：BUILD SUCCESSFUL
+
 ### 13.8 第 6 批：产品增强能力
 
 **时间：第 16–18 周**
