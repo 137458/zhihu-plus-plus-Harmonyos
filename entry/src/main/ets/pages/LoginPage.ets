@@ -1,33 +1,46 @@
 /**
- * 登录页（ArkWeb 实现）
+ * 登录页（ArkWeb + 扫码登录实现）
  *
- * 使用 Web 组件加载知乎 Web 端登录页（https://www.zhihu.com/signin?next=%2F），
- * 用户在 WebView 中完成登录后，通过 WebCookieManager 提取 z_c0 等 Cookie，
- * 调用 LoginViewModel.detectLoginFromCookies 验证登录态并同步全局会话。
+ * 支持两种登录模式切换（对齐原 Android LoginActivity.kt 第 271-285 行）：
+ * - 网页登录（LOGIN_MODE_WEB）：Web 组件加载知乎 Web 端登录页
+ * - 扫码登录（LOGIN_MODE_QR）：展示二维码，用户用知乎 App 扫码登录
+ *
+ * 网页登录流程：
+ * - 手机 UA（ZHIHU_ANDROID_UA）加载登录页，用户在 WebView 中完成登录
+ * - onPageEnd 触发 Cookie 检测，提取 z_c0 验证登录态并同步全局会话
+ *
+ * 扫码登录流程：
+ * - QrLoginPane 组件展示二维码（ArkUI 内置 QRCode 组件）
+ * - QrLoginViewModel 管理状态机，轮询扫码状态
+ * - 登录成功后自动 pop 返回上一页
  *
  * 设计要点：
- * - 手机 UA（ZHIHU_ANDROID_UA）：与原 Android 项目对齐，WebView 使用知乎 App 手机 UA
- * - API UA（ZHIHU_WEB_UA）：会话持久化使用桌面 UA，用于后续知乎 Web API 请求
- * - onPageEnd 触发 Cookie 检测：每次页面加载完成后检查 z_c0
- * - 加载态遮罩：仅在首次加载时显示（避免登录提交时的页面跳转闪烁遮罩）
- * - 错误态遮罩：网络失败时显示错误信息 + 重试按钮
- * - 登录检测中遮罩：z_c0 存在时显示验证中状态
- * - 登录成功：自动 pop 返回上一页
+ * - 顶部 SegmentedControl 切换登录模式
+ * - 网页登录用手机 UA，扫码登录 API 用桌面 UA（各司其职）
+ * - 切换回网页模式调用 qrViewModel.cancel()，WebView 状态保留
+ * - 沉浸式安全边距适配
  *
- * 安全约束：Cookie/Token 不进日志；Cookie 通过 WebCookieManager 提取后直接进入 CookieJar。
- *
- * 架构与 QuestionDetailPage 一致：build() 直接返回 HdsNavDestination，
- * titleBar 配置引用 DETAIL_TITLE_BAR_STYLE 常量。
+ * 安全约束：Cookie/Token 不进日志；Cookie 通过 WebCookieManager/QrLoginApi 提取后直接进入 CookieJar。
  */
 
 import { HdsNavDestination, HdsNavDestinationTitleMode } from '@kit.UIDesignKit';
 import { webview } from '@kit.ArkWeb';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { DETAIL_TITLE_BAR_STYLE, DETAIL_TITLE_BAR_PADDING } from '../components/PlaceholderPage';
+import { QrLoginPane } from '../components/QrLoginPane';
 import { LoginViewModel, ZHIHU_LOGIN_URL, ZHIHU_WEB_UA, ZHIHU_ANDROID_UA } from '../viewmodel/LoginViewModel';
+import { QrLoginViewModel, QrLoginState } from '../viewmodel/QrLoginViewModel';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'LoginPage';
+
+/** 登录模式枚举（对齐原 Android LOGIN_MODE_WEB=0 / LOGIN_MODE_QR=1） */
+enum LoginMode {
+  /** 网页登录 */
+  WEB = 0,
+  /** 扫码登录 */
+  QR = 1
+}
 
 /**
  * 登录页错误状态枚举。
@@ -48,11 +61,15 @@ enum LoginErrorState {
 export struct LoginPage {
   /** Web 控制器 */
   private controller: webview.WebviewController = new webview.WebviewController();
-  /** 登录业务逻辑 */
+  /** 网页登录业务逻辑 */
   private viewModel: LoginViewModel = new LoginViewModel();
+  /** 扫码登录 ViewModel（@Local 以便 @Monitor 监听状态变化） */
+  @Local qrViewModel: QrLoginViewModel = new QrLoginViewModel();
 
   /** 路由栈，onReady 时从 NavDestinationContext 获取 */
   @Local navPathStack: NavPathStack | undefined = undefined;
+  /** 当前登录模式（默认网页登录） */
+  @Local loginMode: LoginMode = LoginMode.WEB;
   /** Web 页面是否正在加载（仅首次加载显示遮罩） */
   @Local isLoading: boolean = true;
   /** 是否已完成首次加载（避免登录提交跳转时闪烁遮罩） */
@@ -70,71 +87,129 @@ export struct LoginPage {
     this.viewModel.setCustomUserAgent(ZHIHU_ANDROID_UA);
   }
 
+  aboutToDisappear(): void {
+    // 页面销毁时取消扫码登录轮询，避免泄漏
+    this.qrViewModel.cancel();
+  }
+
+  /**
+   * 监听扫码登录状态变化。
+   *
+   * 进入 SUCCESS 状态后延迟 500ms pop 返回上一页（让用户看到"登录成功"提示）。
+   */
+  @Monitor('qrViewModel.state')
+  onQrLoginStateChanged(): void {
+    if (this.qrViewModel.state === QrLoginState.SUCCESS) {
+      setTimeout(() => {
+        this.navPathStack?.pop();
+      }, 500);
+    }
+  }
+
   build() {
     HdsNavDestination() {
-      Stack() {
-        // Web 组件始终存在（避免重建导致登录状态丢失）
-        Web({ src: ZHIHU_LOGIN_URL, controller: this.controller })
-          .javaScriptAccess(true)
-          .domStorageAccess(true)
-          .fileAccess(false)
-          .imageAccess(true)
-          .onlineImageAccess(true)
-          .mixedMode(MixedMode.None)
-          .geolocationAccess(false)
-          .mediaPlayGestureAccess(true)
-          .darkMode(WebDarkMode.Auto)
-          .forceDarkAccess(false)
-          .onPageBegin(() => {
-            // 仅首次加载显示遮罩；登录提交时的页面跳转不显示遮罩（避免遮挡表单）
-            if (!this.hasFirstLoadCompleted) {
-              this.isLoading = true;
-            }
-            this.errorState = LoginErrorState.NONE;
-          })
-          .onPageEnd(() => {
-            this.isLoading = false;
-            this.hasFirstLoadCompleted = true;
-            this.checkLoginStatus();
-          })
-          .onErrorReceive((event: OnErrorReceiveEvent) => {
-            this.isLoading = false;
-            this.hasFirstLoadCompleted = true;
-            this.errorState = LoginErrorState.LOAD_FAILED;
-            hilog.error(DOMAIN, TAG, 'Web load error: %{public}s', event.error.getErrorInfo());
-          })
-          .onLoadIntercept((event: OnLoadInterceptEvent): boolean => {
-            // 安全拦截：仅允许 http/https 协议
-            // 知乎登录页可能跳转到第三方协议（weixin://, intent:// 等），拦截防止原生调用风险
-            // 所有 https 跳转均放行，确保 QQ/微信等第三方登录流程正常
-            const url: string = event.data.getRequestUrl();
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-              hilog.warn(DOMAIN, TAG, 'Blocked non-http(s) URL: %{public}s', url);
-              return true;
-            }
-            return false;
-          })
-          .width('100%')
-          .height('100%');
-
-        // 加载中遮罩（仅首次加载）
-        if (this.isLoading) {
-          this.buildLoadingOverlay($r('app.string.login_loading_page'));
+      Column() {
+        // 顶部模式切换 SegmentedControl（网页登录 / 扫码登录）
+        Row() {
+          Button($r('app.string.login_mode_web'))
+            .fontSize($r('app.float.body_font_size'))
+            .fontColor(this.loginMode === LoginMode.WEB
+              ? $r('app.color.app_on_surface') : $r('app.color.app_on_surface_secondary'))
+            .backgroundColor(this.loginMode === LoginMode.WEB
+              ? $r('app.color.app_surface_variant') : $r('app.color.app_background'))
+            .borderRadius(8)
+            .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+            .onClick(() => {
+              this.switchMode(LoginMode.WEB);
+            });
+          Button($r('app.string.login_mode_qr'))
+            .fontSize($r('app.float.body_font_size'))
+            .fontColor(this.loginMode === LoginMode.QR
+              ? $r('app.color.app_on_surface') : $r('app.color.app_on_surface_secondary'))
+            .backgroundColor(this.loginMode === LoginMode.QR
+              ? $r('app.color.app_surface_variant') : $r('app.color.app_background'))
+            .borderRadius(8)
+            .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+            .margin({ left: 8 })
+            .onClick(() => {
+              this.switchMode(LoginMode.QR);
+            });
         }
+        .width('100%')
+        .justifyContent(FlexAlign.Center)
+        .padding({ top: 8, bottom: 8 });
 
-        // 登录检测中遮罩
-        if (this.isDetecting) {
-          this.buildLoadingOverlay($r('app.string.login_detecting'));
-        }
+        // 内容区：根据模式切换显示
+        Stack() {
+          // Web 组件始终存在（避免重建导致登录状态丢失），通过 visibility 控制显隐
+          Web({ src: ZHIHU_LOGIN_URL, controller: this.controller })
+            .javaScriptAccess(true)
+            .domStorageAccess(true)
+            .fileAccess(false)
+            .imageAccess(true)
+            .onlineImageAccess(true)
+            .mixedMode(MixedMode.None)
+            .geolocationAccess(false)
+            .mediaPlayGestureAccess(true)
+            .darkMode(WebDarkMode.Auto)
+            .forceDarkAccess(false)
+            .onPageBegin(() => {
+              // 仅首次加载显示遮罩；登录提交时的页面跳转不显示遮罩（避免遮挡表单）
+              if (!this.hasFirstLoadCompleted) {
+                this.isLoading = true;
+              }
+              this.errorState = LoginErrorState.NONE;
+            })
+            .onPageEnd(() => {
+              this.isLoading = false;
+              this.hasFirstLoadCompleted = true;
+              this.checkLoginStatus();
+            })
+            .onErrorReceive((event: OnErrorReceiveEvent) => {
+              this.isLoading = false;
+              this.hasFirstLoadCompleted = true;
+              this.errorState = LoginErrorState.LOAD_FAILED;
+              hilog.error(DOMAIN, TAG, 'Web load error: %{public}s', event.error.getErrorInfo());
+            })
+            .onLoadIntercept((event: OnLoadInterceptEvent): boolean => {
+              // 安全拦截：仅允许 http/https 协议
+              const url: string = event.data.getRequestUrl();
+              if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                hilog.warn(DOMAIN, TAG, 'Blocked non-http(s) URL: %{public}s', url);
+                return true;
+              }
+              return false;
+            })
+            .width('100%')
+            .height('100%')
+            .visibility(this.loginMode === LoginMode.WEB ? Visibility.Visible : Visibility.Hidden);
 
-        // 错误态遮罩（带重试按钮）
-        if (this.errorState !== LoginErrorState.NONE) {
-          this.buildErrorOverlay();
+          // 扫码登录面板（仅在扫码模式显示）
+          if (this.loginMode === LoginMode.QR) {
+            QrLoginPane({ viewModel: this.qrViewModel });
+          }
+
+          // 网页登录：加载中遮罩（仅首次加载）
+          if (this.loginMode === LoginMode.WEB && this.isLoading) {
+            this.buildLoadingOverlay($r('app.string.login_loading_page'));
+          }
+
+          // 网页登录：登录检测中遮罩
+          if (this.loginMode === LoginMode.WEB && this.isDetecting) {
+            this.buildLoadingOverlay($r('app.string.login_detecting'));
+          }
+
+          // 网页登录：错误态遮罩（带重试按钮）
+          if (this.loginMode === LoginMode.WEB && this.errorState !== LoginErrorState.NONE) {
+            this.buildErrorOverlay();
+          }
         }
+        .width('100%')
+        .layoutWeight(1)
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
       }
       .width('100%')
-      .height('100%')
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
+      .height('100%');
     }
     .titleBar({
       padding: DETAIL_TITLE_BAR_PADDING,
@@ -158,6 +233,31 @@ export struct LoginPage {
     .onReady((ctx: NavDestinationContext) => {
       this.navPathStack = ctx.pathStack;
     });
+  }
+
+  /**
+   * 切换登录模式。
+   *
+   * - 切换到 QR：自动触发 startLogin
+   * - 切换到 WEB：取消扫码轮询，保留 WebView 状态
+   *
+   * @param mode 目标模式
+   */
+  private switchMode(mode: LoginMode): void {
+    if (this.loginMode === mode) {
+      return;
+    }
+    this.loginMode = mode;
+    if (mode === LoginMode.QR) {
+      // 进入扫码模式：启动扫码登录流程
+      this.qrViewModel.startLogin().catch((e: object) => {
+        hilog.error(DOMAIN, TAG, 'qr startLogin failed: %{public}s',
+          e instanceof Error ? e.message : String(e));
+      });
+    } else {
+      // 切回网页模式：取消轮询，WebView 状态保留
+      this.qrViewModel.cancel();
+    }
   }
 
   /**
