@@ -9,7 +9,7 @@
  */
 
 /**
- * 桌面 User-Agent。
+ * 桌面 User-Agent（与原 Android 项目 QrLogin.kt 对齐）。
  *
  * 必须使用桌面 UA，否则知乎返回移动端 H5 登录页（功能受限）。
  * 同时用于：
@@ -20,4 +20,4 @@
  * 修改此值需同步验证签名算法（zse-93）兼容性。
  */
 export const ZHIHU_WEB_UA: string =
-  'Mozilla/5.0 (X11; U; Linux x86_64; en-US) AppleWebKit/540.0 (KHTML, like Gecko) Ubuntu/10.10 Chrome/9.1.0.0 Safari/540.0';
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';

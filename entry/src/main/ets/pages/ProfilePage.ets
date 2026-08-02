@@ -193,7 +193,8 @@ export struct ProfilePage {
       top: $r('app.float.page_padding_vertical'),
       bottom: $r('app.float.content_bottom_padding_tabbar')
     })
-    .alignItems(HorizontalAlign.Center);
+    .alignItems(HorizontalAlign.Center)
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
   }
 
   /**

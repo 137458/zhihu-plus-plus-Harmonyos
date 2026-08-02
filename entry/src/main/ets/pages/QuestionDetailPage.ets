@@ -147,7 +147,8 @@ export struct QuestionDetailPage {
             this.refreshDataSource();
           });
         }
-      });
+      })
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
     }
     .titleBar({
       padding: DETAIL_TITLE_BAR_PADDING,

@@ -21,6 +21,7 @@
 import { NetworkClient, HttpResponse, GetRequestOptions, PostRequestOptions } from './NetworkClient';
 import { CookieJar } from './CookieJar';
 import { createZse96Header, hmacSha1Hex, encryptSignInPayload } from './ZseSigner';
+import { ZHIHU_WEB_UA } from './ZhihuConstants';
 import { ZhihuSession } from '../model/ZhihuSession';
 import { ZhihuProfile } from '../model/ZhihuProfile';
 import { ApiError } from '../model/ApiError';
@@ -37,12 +38,6 @@ const ME_PATH: string = '/api/v4/me';
 const TOKEN_REFRESH_PATH: string = '/api/account/prod/token/refresh';
 /** /api/v3/oauth/sign_in 路径 */
 const SIGN_IN_PATH: string = '/api/v3/oauth/sign_in';
-
-/**
- * Web UA（与 ZhihuApi.ets 保持一致；重复定义避免跨模块依赖，
- * 修改时需同步两处，后续可考虑抽取到公共常量文件）
- */
-const ZHIHU_WEB_UA: string = 'Mozilla/5.0 (X11; U; Linux x86_64; en-US) AppleWebKit/540.0 (KHTML, like Gecko) Ubuntu/10.10 Chrome/9.1.0.0 Safari/540.0';
 
 /** zse 签名版本号 */
 const ZSE93_VERSION: string = '101_3_3.0';

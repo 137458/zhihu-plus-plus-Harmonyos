@@ -382,7 +382,7 @@ export function encryptSignInPayload(formData: string): string {
  *
  * 算法步骤：
  * 1. 明文 = [seed, 0, ...encodeURIComponent(input) 的 ASCII 字节]
- *    seed = 12（来自 Rust 参考：Math.random = () => 0.1 → Math.floor(0.1 * 127) = 12）
+ *    seed = 0xD2（210，与原 Android 项目 ZseSigner.kt 对齐）
  * 2. PKCS7 填充到 16 字节倍数
  * 3. 首块与 KEY16 异或 42
  * 4. rBlock 加密首块得到 c0
@@ -393,7 +393,7 @@ export function encryptSignInPayload(formData: string): string {
  * @returns 加密结果字符串
  */
 export function encryptZseV4(input: string): string {
-  const seed: number = 12;
+  const seed: number = 0xD2;
 
   // 构造明文：[seed, 0, ...encodeURIComponent(input) 的 ASCII 字节]
   const encoded: string = encodeURIComponent(input);

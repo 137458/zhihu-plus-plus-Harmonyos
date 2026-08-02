@@ -53,6 +53,17 @@ export default class EntryAbility extends UIAbility {
   onWindowStageCreate(windowStage: window.WindowStage): void {
     hilog.info(DOMAIN, TAG, 'onWindowStageCreate: loading pages/Index');
 
+    // 沉浸式全屏布局：应用窗口延伸到状态栏/导航栏下方
+    // 配合各页面 expandSafeArea([SafeAreaType.SYSTEM]) 实现内容穿透系统栏
+    // 消除顶部/底部的"白色边框遮罩"现象
+    const mainWindow = windowStage.getMainWindowSync();
+    mainWindow.setWindowLayoutFullScreen(true).then(() => {
+      hilog.info(DOMAIN, TAG, 'setWindowLayoutFullScreen succeeded');
+    }).catch((e: object) => {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      hilog.error(DOMAIN, TAG, 'setWindowLayoutFullScreen failed: %{public}s', errMsg);
+    });
+
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
         // Error 对象属性不可枚举，JSON.stringify 返回 '{}'，改用 message/code

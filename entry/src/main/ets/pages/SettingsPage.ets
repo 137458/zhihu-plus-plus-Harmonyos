@@ -192,7 +192,8 @@ export struct SettingsPage {
       }
       .width('100%')
       .height('100%')
-      .backgroundColor($r('app.color.app_background'));
+      .backgroundColor($r('app.color.app_background'))
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
     }
     .titleBar({
       padding: DETAIL_TITLE_BAR_PADDING,
