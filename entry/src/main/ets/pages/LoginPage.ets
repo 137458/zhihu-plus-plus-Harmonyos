@@ -6,7 +6,8 @@
  * 调用 LoginViewModel.detectLoginFromCookies 验证登录态并同步全局会话。
  *
  * 设计要点：
- * - 桌面 UA：避免知乎返回移动端 H5 登录页（功能受限）
+ * - 手机 UA（ZHIHU_ANDROID_UA）：与原 Android 项目对齐，WebView 使用知乎 App 手机 UA
+ * - API UA（ZHIHU_WEB_UA）：会话持久化使用桌面 UA，用于后续知乎 Web API 请求
  * - onPageEnd 触发 Cookie 检测：每次页面加载完成后检查 z_c0
  * - 加载态遮罩：仅在首次加载时显示（避免登录提交时的页面跳转闪烁遮罩）
  * - 错误态遮罩：网络失败时显示错误信息 + 重试按钮
@@ -23,7 +24,7 @@ import { HdsNavDestination, HdsNavDestinationTitleMode } from '@kit.UIDesignKit'
 import { webview } from '@kit.ArkWeb';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { DETAIL_TITLE_BAR_STYLE, DETAIL_TITLE_BAR_PADDING } from '../components/PlaceholderPage';
-import { LoginViewModel, ZHIHU_LOGIN_URL, ZHIHU_WEB_UA } from '../viewmodel/LoginViewModel';
+import { LoginViewModel, ZHIHU_LOGIN_URL, ZHIHU_WEB_UA, ZHIHU_ANDROID_UA } from '../viewmodel/LoginViewModel';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'LoginPage';
@@ -62,9 +63,11 @@ export struct LoginPage {
   @Local isDetecting: boolean = false;
 
   aboutToAppear(): void {
-    // 设置桌面 UA，避免知乎返回移动端 H5 登录页
-    // 注意：setCustomUserAgent 是全局生效的，设置后所有 Web 组件都使用此 UA
-    this.viewModel.setCustomUserAgent(ZHIHU_WEB_UA);
+    // 设置手机 UA（知乎 App UA），与原 Android 项目对齐
+    // 原 Android：登录页用 WebView 默认 UA（手机），首页用 AccountData.ANDROID_USER_AGENT（手机）
+    // HarmonyOS：统一使用 ZHIHU_ANDROID_UA
+    // 注意：setAppCustomUserAgent 是全局生效的，设置后所有 Web 组件都使用此 UA
+    this.viewModel.setCustomUserAgent(ZHIHU_ANDROID_UA);
   }
 
   build() {

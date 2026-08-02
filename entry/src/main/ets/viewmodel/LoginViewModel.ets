@@ -21,7 +21,7 @@ import { ZhihuSession } from '../model/ZhihuSession';
 import { ZhihuProfile } from '../model/ZhihuProfile';
 import { CookieJar } from '../api/CookieJar';
 import { AuthApi } from '../api/AuthApi';
-import { ZHIHU_WEB_UA } from '../api/ZhihuConstants';
+import { ZHIHU_WEB_UA, ZHIHU_ANDROID_UA } from '../api/ZhihuConstants';
 import { SessionViewModel } from './SessionViewModel';
 
 const DOMAIN: number = 0x0000;
@@ -33,9 +33,10 @@ export const ZHIHU_LOGIN_URL: string = 'https://www.zhihu.com/signin?next=%2F';
 /** 知乎 Cookie 所属域名（用于 fetchCookieSync） */
 export const ZHIHU_COOKIE_URL: string = 'https://www.zhihu.com';
 
-// ZHIHU_WEB_UA 从 api/ZhihuConstants.ets 导入，避免跨模块重复定义
-// 通过 re-export 保持向后兼容（LoginPage.ets 已从本模块导入 ZHIHU_WEB_UA）
-export { ZHIHU_WEB_UA };
+// UA 常量从 api/ZhihuConstants.ets 导入，通过 re-export 保持向后兼容
+// - ZHIHU_WEB_UA：桌面 UA，用于 API 请求和会话持久化
+// - ZHIHU_ANDROID_UA：手机 UA，用于 WebView 登录流程
+export { ZHIHU_WEB_UA, ZHIHU_ANDROID_UA };
 
 /**
  * 登录页 ViewModel。
@@ -58,10 +59,11 @@ export class LoginViewModel {
   }
 
   /**
-   * 设置 WebView 全局 User-Agent 为桌面 UA。
+   * 设置 WebView 全局 User-Agent。
    *
-   * 知乎 Web 端会根据 UA 返回桌面或移动端登录页，
-   * 必须使用桌面 UA 才能获取到完整功能的登录页。
+   * 登录流程使用手机 UA（ZHIHU_ANDROID_UA），与原 Android 项目对齐：
+   * - 原 Android：登录页用 WebView 默认 UA（手机），首页用 AccountData.ANDROID_USER_AGENT（手机）
+   * - HarmonyOS：统一使用 ZHIHU_ANDROID_UA（手机知乎 App UA）
    *
    * 实现说明：
    * - 使用静态方法 setAppCustomUserAgent，全局生效，无需关联具体 Web 组件
@@ -69,7 +71,7 @@ export class LoginViewModel {
    *   不适合在 aboutToAppear 阶段（Web 组件尚未构建完成）调用
    * - 必须在 UI 线程调用，本方法应在组件 aboutToAppear 中调用
    *
-   * @param userAgent 桌面 UA 字符串
+   * @param userAgent UA 字符串（登录用 ZHIHU_ANDROID_UA）
    */
   setCustomUserAgent(userAgent: string): void {
     try {
@@ -92,7 +94,7 @@ export class LoginViewModel {
    * 6. 验证成功 → setSession(verified) 同步全局状态
    * 7. 验证失败 → 仍 setSession（Cookie 有效，profile 暂缺）
    *
-   * @param userAgent 当前 WebView 使用的 UA（持久化到会话）
+   * @param userAgent 持久化到会话的 UA（用于后续 API 请求，传 ZHIHU_WEB_UA 桌面 UA）
    * @returns true 表示检测到登录凭证并已同步会话；false 表示未登录
    */
   async detectLoginFromCookies(userAgent: string): Promise<boolean> {

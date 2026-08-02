@@ -9,15 +9,33 @@
  */
 
 /**
- * 桌面 User-Agent（与原 Android 项目 QrLogin.kt 对齐）。
+ * 桌面 User-Agent（与原 Android 项目 QrLogin.kt 的 ZHIHU_DESKTOP_USER_AGENT 对齐）。
  *
- * 必须使用桌面 UA，否则知乎返回移动端 H5 登录页（功能受限）。
- * 同时用于：
- * - 知乎 API 请求头（AuthApi/ZhihuApi）
- * - ArkWeb WebView 全局 UA（LoginViewModel）
- * - 会话持久化（SessionViewModel/ZhihuSession.userAgent）
+ * 用于知乎 Web API 请求头（AuthApi/ZhihuApi）和会话持久化（ZhihuSession.userAgent）。
+ * 知乎 Web API 端点要求桌面 UA + zse 签名，手机 UA 会导致接口返回不一致。
+ *
+ * 注意：WebView 登录不使用此 UA，改用 ZHIHU_ANDROID_UA（手机 UA）。
  *
  * 修改此值需同步验证签名算法（zse-93）兼容性。
  */
 export const ZHIHU_WEB_UA: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
+
+/**
+ * 知乎 Android App User-Agent（与原 Android 项目 AccountData.ANDROID_USER_AGENT 对齐）。
+ *
+ * 用于 ArkWeb WebView 登录流程：
+ * - 加载知乎登录页（https://www.zhihu.com/signin?next=%2F）
+ * - 登录成功后加载首页（https://www.zhihu.com/）获取 z_c0 等 Cookie
+ *
+ * 原 Android 行为（LoginActivity.kt 第 158-160 行）：
+ * - 登录页使用 WebView 默认 UA（手机 Chrome）
+ * - 跳转到首页时切换为 AccountData.ANDROID_USER_AGENT（手机知乎 App UA）
+ * - 两者均为手机 UA，获取的 Cookie 与知乎 App 兼容
+ *
+ * HarmonyOS 实现统一使用此 UA（简化逻辑），效果与原 Android 一致。
+ */
+export const ZHIHU_ANDROID_UA: string =
+  'com.zhihu.android/Futureve/10.61.0 Mozilla/5.0 (Linux; Android 12; sdk_gphone64_arm64 ' +
+  'Build/SE1A.220630.001.A1; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 ' +
+  'Chrome/57.0.1000.10 Mobile Safari/537.36';

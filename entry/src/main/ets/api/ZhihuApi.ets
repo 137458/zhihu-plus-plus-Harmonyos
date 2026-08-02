@@ -18,6 +18,7 @@
 import { NetworkClient, HttpResponse, GetRequestOptions, PostRequestOptions } from './NetworkClient';
 import { CookieJar } from './CookieJar';
 import { createZse96Header } from './ZseSigner';
+import { ZHIHU_WEB_UA } from './ZhihuConstants';
 import { FeedCard } from '../model/FeedCard';
 import { SearchResultItem } from '../model/SearchResult';
 import { HotSearchItem } from '../model/HotSearch';
@@ -96,8 +97,6 @@ const ANSWER_DETAIL_INCLUDE: string = '.settings,content,editable_content,paid_i
  * 来源：docs/evidence/03-content-detail.md 文章详情行
  */
 const ARTICLE_DETAIL_INCLUDE: string = 'content,topics,paid_info,can_comment,excerpt,thanks_count,voteup_count,comment_count,visited_count,relationship,ip_info,relationship.vote,author.badge_v2';
-/** 详情接口使用的 Web 端 User-Agent（来自 PRD 第 3 批 Slice 1） */
-const ZHIHU_WEB_UA: string = 'Mozilla/5.0 (X11; U; Linux x86_64; en-US) AppleWebKit/540.0 (KHTML, like Gecko) Ubuntu/10.10 Chrome/9.1.0.0 Safari/540.0';
 
 /** 收藏 API 基础 URL */
 const ZHIHU_API_COLLECTIONS: string = 'https://api.zhihu.com/collections';
