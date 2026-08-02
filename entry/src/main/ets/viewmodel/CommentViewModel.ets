@@ -41,8 +41,8 @@ export class CommentViewModel {
   /** 分页信息 */
   private paging: Paging | null = null;
 
-  constructor(contentType: string, contentId: string) {
-    this.api = new ZhihuApi();
+  constructor(contentType: string, contentId: string, api?: ZhihuApi) {
+    this.api = api !== undefined ? api : new ZhihuApi();
     this.contentType = contentType;
     this.contentId = contentId;
   }
@@ -92,17 +92,20 @@ export class CommentViewModel {
     this.isLoading = true;
     try {
       const result: RootCommentsResult = await this.api.fetchRootComments(this.contentType, this.contentId, undefined, pagingNext);
-      // 去重追加
+      // 去重追加：构建新数组并重新赋值以触发 @Trace（@Trace 只观察引用变化，
+      // 参考 HomeFeedViewModel.loadMore 的 reassign 模式；原地 push 不会触发 UI 刷新）
+      const newComments: Comment[] = [...this.comments];
       const existingIds: Set<string> = new Set();
-      for (let i = 0; i < this.comments.length; i++) {
-        existingIds.add(this.comments[i].id);
+      for (let i = 0; i < newComments.length; i++) {
+        existingIds.add(newComments[i].id);
       }
       for (let i = 0; i < result.items.length; i++) {
         if (!existingIds.has(result.items[i].id)) {
-          this.comments.push(result.items[i]);
+          newComments.push(result.items[i]);
           existingIds.add(result.items[i].id);
         }
       }
+      this.comments = newComments;
       this.paging = result.paging;
       this.isEnd = result.paging !== null ? result.paging.isEnd : true;
       hilog.info(DOMAIN, TAG, 'loadMore: contentId=%{public}s added=%{public}d',
