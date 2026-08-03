@@ -189,7 +189,7 @@ export class QrLoginViewModel {
       return;
     }
     if (success) {
-      await this.finalizeLogin();
+      await this.finalizeLogin(version);
     } else {
       // 非风控的失败视为过期
       if (this.state !== QrLoginState.RISK_CONTROL) {
@@ -207,8 +207,16 @@ export class QrLoginViewModel {
    * 2. 调用 AuthApi.fetchVerifiedSession 验证并获取 profile
    * 3. 验证失败但 z_c0 存在仍 setSession（与 WebView 登录路径一致）
    * 4. 状态转 Success
+   *
+   * 竞态修复：步骤 2 是异步网络调用，期间用户可能调用 cancel() 或 startLogin()。
+   * 若验证完成后检测到已取消或版本号不匹配，仍同步会话（CookieJar 已有 z_c0，
+   * 登录态需反映到全局），但跳过 SUCCESS 状态更新，避免：
+   * - 覆盖用户主动设置的 IDLE/LOADING_QR 状态
+   * - 触发 LoginPage 的 @Monitor 弹出页面
+   *
+   * @param version 启动轮询时的版本号，用于检测异步验证期间是否已被新轮询取代
    */
-  private async finalizeLogin(): Promise<void> {
+  private async finalizeLogin(version: number): Promise<void> {
     this.statusMessage = '正在验证登录状态';
 
     // 构造会话
@@ -231,6 +239,16 @@ export class QrLoginViewModel {
     } catch (e) {
       hilog.warn(DOMAIN, TAG, 'finalizeLogin verify failed: %{public}s',
         e instanceof Error ? e.message : String(e));
+    }
+
+    // 异步验证期间用户可能已取消或启动新轮询。
+    // 仍同步会话（CookieJar 已有 z_c0，登录态需反映到全局），
+    // 但跳过 SUCCESS 状态更新，避免覆盖用户主动设置的 IDLE/LOADING_QR 状态
+    // 并防止 @Monitor 触发 LoginPage pop。
+    if (this.isCancelled || version !== this.pollVersion) {
+      this.sessionViewModel.setSession(session);
+      hilog.info(DOMAIN, TAG, 'finalizeLogin: cancelled/version mismatch during verify, session synced without SUCCESS state');
+      return;
     }
 
     // 同步到 SessionViewModel（触发 isLoggedIn 变化，UI 自动刷新）
