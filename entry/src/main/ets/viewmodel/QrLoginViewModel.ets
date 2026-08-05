@@ -102,8 +102,14 @@ export class QrLoginViewModel {
    * 6. 失败 → 状态转 Error
    */
   async startLogin(): Promise<void> {
-    // 递增版本号使任何正在运行的旧轮询失效（旧轮询的 isCancelled 回调返回 true 后退出）
+    // 递增版本号使任何正在运行的旧轮询失效（旧轮询的 isCancelled 回调返回 true 后退出）。
+    // 同步捕获本次启动的版本号：若启动过程中被新的 startLogin/refresh/cancel 取代（版本号不匹配），
+    // prefetch/requestQrCode 完成后的结果必须丢弃，避免新旧 startLogin 同时进入轮询，
+    // 否则旧轮询的过期/风控状态会覆盖新轮询的 WAITING_SCAN（commit 仅修复了 poll→startLogin
+    // 竞态，遗漏了 startLogin→startLogin 竞态：原代码在 await 后才捕获 currentVersion，
+    // 且守卫只查 isCancelled 不查版本号，导致两次重叠的 startLogin 拿到相同版本号同时轮询）。
     this.pollVersion++;
+    const currentVersion: number = this.pollVersion;
     this.isCancelled = false;
     this.riskControlUrl = '';
     this.state = QrLoginState.LOADING_QR;
@@ -112,13 +118,13 @@ export class QrLoginViewModel {
     try {
       // 预取上下文（失败不中断流程）
       await this.qrLoginApi.prefetchQrLoginContext();
-      if (this.isCancelled) {
+      if (this.isCancelled || currentVersion !== this.pollVersion) {
         return;
       }
 
       // 获取二维码
       const qrCode: QrCodeResult = await this.qrLoginApi.requestQrCode();
-      if (this.isCancelled) {
+      if (this.isCancelled || currentVersion !== this.pollVersion) {
         return;
       }
 
@@ -127,7 +133,6 @@ export class QrLoginViewModel {
       this.statusMessage = '请打开知乎 App 扫一扫';
 
       // 启动轮询（fire-and-forget，错误在内部处理）
-      const currentVersion: number = this.pollVersion;
       this.pollLogin(qrCode.token, qrCode.deadline, currentVersion).catch((e: object) => {
         hilog.error(DOMAIN, TAG, 'pollLogin failed: %{public}s',
           e instanceof Error ? e.message : String(e));
@@ -137,7 +142,7 @@ export class QrLoginViewModel {
         }
       });
     } catch (e) {
-      if (this.isCancelled) {
+      if (this.isCancelled || currentVersion !== this.pollVersion) {
         return;
       }
       hilog.error(DOMAIN, TAG, 'startLogin failed: %{public}s',
