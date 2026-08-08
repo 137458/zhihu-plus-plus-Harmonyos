@@ -81,8 +81,9 @@ export class QrLoginViewModel {
    */
   private pollVersion: number = 0;
 
-  constructor() {
-    this.qrLoginApi = new QrLoginApi();
+  constructor(qrLoginApi?: QrLoginApi) {
+    // 允许注入 QrLoginApi 以便设备端测试确定性复现并发竞态；生产路径不传参，行为不变
+    this.qrLoginApi = qrLoginApi !== undefined ? qrLoginApi : new QrLoginApi();
     this.authApi = new AuthApi();
     this.sessionViewModel = SessionViewModel.getInstance();
     this.cookieJar = CookieJar.getInstance();
@@ -102,8 +103,12 @@ export class QrLoginViewModel {
    * 6. 失败 → 状态转 Error
    */
   async startLogin(): Promise<void> {
-    // 递增版本号使任何正在运行的旧轮询失效（旧轮询的 isCancelled 回调返回 true 后退出）
-    this.pollVersion++;
+    // 递增版本号并捕获本次启动的版本号：
+    // - 使任何正在运行的旧轮询失效（旧轮询的 isCancelled 回调检测到版本不匹配后退出）
+    // - 让本次 startLogin 在被新的 startLogin/cancel 取代后能自我退出。loading 阶段同样以
+    //   版本号守卫，不能只依赖 isCancelled（会被后续 startLogin 重置为 false），否则被取消的
+    //   旧 startLogin 会“复活”，与新的 startLogin 并发各启动一条轮询。
+    const startVersion: number = ++this.pollVersion;
     this.isCancelled = false;
     this.riskControlUrl = '';
     this.state = QrLoginState.LOADING_QR;
@@ -112,13 +117,14 @@ export class QrLoginViewModel {
     try {
       // 预取上下文（失败不中断流程）
       await this.qrLoginApi.prefetchQrLoginContext();
-      if (this.isCancelled) {
+      // 取消或被新的 startLogin 取代时直接退出，不再设置状态或启动轮询
+      if (this.isCancelled || startVersion !== this.pollVersion) {
         return;
       }
 
       // 获取二维码
       const qrCode: QrCodeResult = await this.qrLoginApi.requestQrCode();
-      if (this.isCancelled) {
+      if (this.isCancelled || startVersion !== this.pollVersion) {
         return;
       }
 
@@ -127,17 +133,18 @@ export class QrLoginViewModel {
       this.statusMessage = '请打开知乎 App 扫一扫';
 
       // 启动轮询（fire-and-forget，错误在内部处理）
-      const currentVersion: number = this.pollVersion;
-      this.pollLogin(qrCode.token, qrCode.deadline, currentVersion).catch((e: object) => {
+      // 使用 startVersion 而非重新读取 this.pollVersion：并发 startLogin 会推进 pollVersion，
+      // 若重新读取会让被取代的旧流程也拿到最新版本号，误以为自己仍是当前轮询。
+      this.pollLogin(qrCode.token, qrCode.deadline, startVersion).catch((e: object) => {
         hilog.error(DOMAIN, TAG, 'pollLogin failed: %{public}s',
           e instanceof Error ? e.message : String(e));
-        if (!this.isCancelled && this.pollVersion === currentVersion) {
+        if (!this.isCancelled && this.pollVersion === startVersion) {
           this.state = QrLoginState.ERROR;
           this.statusMessage = '扫码登录失败，请重试';
         }
       });
     } catch (e) {
-      if (this.isCancelled) {
+      if (this.isCancelled || startVersion !== this.pollVersion) {
         return;
       }
       hilog.error(DOMAIN, TAG, 'startLogin failed: %{public}s',
